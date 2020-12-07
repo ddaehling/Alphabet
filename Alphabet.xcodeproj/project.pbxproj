@@ -66,9 +66,9 @@
 			children = (
 				6520AEC624F93058004D59D0 /* AlphabetApp.swift */,
 				6520AEC824F93058004D59D0 /* ContentView.swift */,
+				65A73354257C0211001A6677 /* WordView.swift */,
 				65A73357257C0267001A6677 /* LetterView.swift */,
 				65A7335A257C02AE001A6677 /* Model.swift */,
-				65A73354257C0211001A6677 /* WordView.swift */,
 				655888672500025C0081AB21 /* Helpers.swift */,
 				6524C073250B9FCE009B4942 /* Preferences.swift */,
 				6520AECA24F9305A004D59D0 /* Assets.xcassets */,

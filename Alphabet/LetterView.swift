@@ -9,8 +9,6 @@ import SwiftUI
 
 struct LetterView: View {
     
-    @Environment(\.letterHeight) var letterHeight
-    
     @State var letter : Letter
     @State var letterPreferenceData : [LetterPreferenceData] = []
     
@@ -20,44 +18,37 @@ struct LetterView: View {
     var offset : CGSize {
         guard
             let letterAnchor = letterPreferenceData.first?.anchor,
-            let originalLetterPreferenceData = originalLetterPreferenceData
+            let originalLetterAnchor = originalLetterPreferenceData?.anchor
         else {
             return .zero
         }
         let difference = proxy.size.width < proxy.size.height ? (proxy.size.width - proxy.size.height) / 2 : 0
         return .init(
-            width: proxy[originalLetterPreferenceData.anchor].midX - proxy[letterAnchor].midX,
-            height: proxy[originalLetterPreferenceData.anchor].midY - proxy[letterAnchor].midY
+            width: proxy[originalLetterAnchor].midX - proxy[letterAnchor].midX,
+            height: proxy[originalLetterAnchor].midY - proxy[letterAnchor].midY
         )
     }
     
-    var height : CGFloat {
-        guard let anchor = originalLetterPreferenceData?.anchor else { return 0 }
-        return letter.hasAppeared ? letterHeight : proxy[anchor].height
-    }
-
     var body: some View {
         ZStack {
             if letter.letter == "space" {
-                Color.clear
-                    .frame(width: min(proxy.size.width, proxy.size.height) / 14)
+                Image("i")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .opacity(0)
             } else {
-                ZStack {
-                    Image(letter.letter)
-                        .resizable()
-                        .getHeight()
-                        .aspectRatio(contentMode: .fit)
-                        .offset(letter.hasAppeared ? .zero : offset)
-                        .anchorPreference(key: LetterBounds.self, value: .bounds, transform: { [LetterPreferenceData(id: "\(letter.id)", anchor: $0)] })
-                        .onAppear {
-                            withAnimation(.easeInOut) {
-                                letter.hasAppeared = true
-                            }
-                        }
-                }
+                Image(letter.letter)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
             }
         }
-        .frame(height: height)
+        .offset(letter.hasAppeared ? .zero : offset)
+        .anchorPreference(key: LetterBounds.self, value: .bounds, transform: { [LetterPreferenceData(id: "\(letter.id)", anchor: $0)] })
+        .onAppear {
+            withAnimation(.spring()) {
+                letter.hasAppeared = true
+            }
+        }
         .backgroundPreferenceValue(LetterBounds.self, { value in
             GeometryReader { proxy in
                 Color.clear
@@ -67,8 +58,6 @@ struct LetterView: View {
                     
             }
         })
-        .debugFrame(with: .black)
-        
     }
 }
 

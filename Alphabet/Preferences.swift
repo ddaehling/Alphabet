@@ -5,6 +5,48 @@
 //  Created by Daniel Dähling on 11.09.20.
 //
 //
+import SwiftUI
+struct AverageHeightPropagator: ViewModifier {
+    
+    @State var averageHeight : CGFloat = 0
+    
+    func body(content: Content) -> some View {
+        content
+            .onPreferenceChange(LetterHeightKey.self, perform: { value in
+                DispatchQueue.main.async {
+                    let allHeights = value.reduce(0, +)
+                    averageHeight = allHeights / CGFloat(value.count)
+                    print(averageHeight)
+                }
+                
+            })
+            .environment(\.letterHeight, averageHeight)
+    }
+}
+
+struct HeightReader: ViewModifier {
+    
+    func body(content: Content) -> some View {
+        content
+            .overlay(GeometryReader { proxy in
+                Color.clear
+                    .preference(key: LetterHeightKey.self, value: [proxy.size.height])
+            })
+    }
+    
+}
+
+extension View {
+    
+    func equalizeHeight() -> some View {
+        self.modifier(AverageHeightPropagator())
+    }
+    
+    func getHeight() -> some View {
+        self.modifier(HeightReader())
+    }
+}
+
 //import SwiftUI
 //
 //struct PropagatedWidthEnvironmentKey: EnvironmentKey {

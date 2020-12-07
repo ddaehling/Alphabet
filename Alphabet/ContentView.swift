@@ -50,12 +50,10 @@ struct ContentView: View {
     @State private var selectedLetters : [Letter] = []
     @State private var removedIndex : Int? = nil
     
-    private let cancellable = NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)
-        .makeConnectable()
-        .autoconnect()
-        .sink { value in
-            print("\(value.name)")
-        }
+    private let orientationDidChange = NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)
+//        .makeConnectable()
+//        .autoconnect()
+    
     
     var body: some View {
         GeometryReader { proxy in
@@ -79,9 +77,12 @@ struct ContentView: View {
                                         .resizable()
                                         .renderingMode(.original)
                                         .aspectRatio(contentMode: .fit)
-                                        .frame(height: letter == "space" ? min(proxy.size.width, proxy.size.height) / 21 : min(proxy.size.width, proxy.size.height) / 7)
-                                        .padding([.leading, .trailing], 0)
-                                        .anchorPreference(key: LetterBounds.self, value: .bounds, transform: { [LetterPreferenceData(id: letter, anchor: $0)] })
+                                        .frame(height: sizeForLetter(letter, with: proxy))
+                                        .anchorPreference(
+                                            key: LetterBounds.self,
+                                            value: .bounds,
+                                            transform: { [LetterPreferenceData(id: letter, anchor: $0)] }
+                                        )
                                 })
                             }
                         }
@@ -92,19 +93,12 @@ struct ContentView: View {
                 Spacer()
                 WordView(proxy: proxy, topViewPreferenceData: letterAnchors, removedIndex: $removedIndex, selectedLetters: $selectedLetters)
                     .padding([.leading, .trailing], 50)
-                    
-            }.onAppear { print("Appear") }
-//            .onReceive(orientationDidChange) { newValue in
-//
-//                let value = newValue
-//                DispatchQueue.main.async {
-////                    letterAnchors.removeAll()
-//                }
-//            }
+                
+            }
             .backgroundPreferenceValue(LetterBounds.self, { value in
                 GeometryReader { proxy in
                     Color.clear
-                        .onAppear() {
+                        .onAppear {
                             DispatchQueue.main.async {
                                 letterAnchors = value
                             }
@@ -115,6 +109,11 @@ struct ContentView: View {
         }
         
     }
+    
+    func sizeForLetter(_ letter: String, with proxy: GeometryProxy) -> CGFloat {
+        return letter == "space" ? min(proxy.size.width, proxy.size.height) / 21 : min(proxy.size.width, proxy.size.height) / 7
+    }
+    
 }
 
 struct LetterPreferenceData {
@@ -142,46 +141,7 @@ struct LetterHeightKey: PreferenceKey {
     }
 }
 
-struct AverageHeightPropagator: ViewModifier {
-    
-    @State var averageHeight : CGFloat = 0
-    
-    func body(content: Content) -> some View {
-        content
-            .environment(\.letterHeight, averageHeight)
-            .onPreferenceChange(LetterHeightKey.self, perform: { value in
-                DispatchQueue.main.async {
-                    let allHeights = value.reduce(0, +)
-                    averageHeight = allHeights / CGFloat(value.count)
-                    print(averageHeight)
-                }
-                
-            })
-    }
-}
 
-struct HeightReader: ViewModifier {
-    
-    func body(content: Content) -> some View {
-        content
-            .overlay(GeometryReader { proxy in
-                Color.clear
-                    .preference(key: LetterHeightKey.self, value: [proxy.size.height])
-            })
-    }
-    
-}
-
-extension View {
-    
-    func equalizeHeight() -> some View {
-        self.modifier(AverageHeightPropagator())
-    }
-    
-    func getHeight() -> some View {
-        self.modifier(HeightReader())
-    }
-}
 
 struct LetterHeightEnvironmentKey: EnvironmentKey {    
     static var defaultValue: CGFloat = 0
