@@ -13,7 +13,7 @@ struct Letter: Equatable, Identifiable {
     let id: UUID
 }
 
-struct LetterBox: Identifiable {
+struct LetterBox: Equatable, Identifiable {
     let id = UUID()
     let letters: [String]
 }

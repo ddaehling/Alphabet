@@ -22,7 +22,7 @@ struct LetterView: View {
         else {
             return .zero
         }
-        let difference = proxy.size.width < proxy.size.height ? (proxy.size.width - proxy.size.height) / 2 : 0
+//        let difference = proxy.size.width < proxy.size.height ? (proxy.size.width - proxy.size.height) / 2 : 0
         return .init(
             width: proxy[originalLetterAnchor].midX - proxy[letterAnchor].midX,
             height: proxy[originalLetterAnchor].midY - proxy[letterAnchor].midY

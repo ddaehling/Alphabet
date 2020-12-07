@@ -10,11 +10,7 @@ import Combine
 import ComposableArchitecture
 
 struct AppState {
-    var mainViewState : MainViewState
-    var subViewState : SubViewState
-}
-
-struct MainViewState {
+    let proxy : GeometryProxy
     let letters = [
         LetterBox(letters: ["a", "b", "c", "d", "e", "f"]),
         LetterBox(letters: ["g", "h", "i", "j", "k", "l", "m"]),
@@ -24,19 +20,78 @@ struct MainViewState {
     var letterAnchors : [LetterPreferenceData] = []
     var selectedLetters : [Letter] = []
     var removedIndex : Int?
+
+    var wordViewState : WordViewState {
+        get { .init(
+            proxy: self.proxy,
+            topViewLetterAnchors: self.letterAnchors,
+            removedIndex: self.removedIndex,
+            selectedLetters: self.selectedLetters
+        )
+        }
+        set { (self.removedIndex, self.selectedLetters, self.removedIndex, self.selectedLetters) = (newValue.removedIndex, newValue.selectedLetters, newValue.removedIndex, newValue.selectedLetters ) }
+    }
+
+    struct WordViewState {
+        var proxy : GeometryProxy
+        var topViewLetterAnchors : [LetterPreferenceData]
+        var removedIndex : Int?
+        var selectedLetters : [Letter]
+    }
 }
 
-public struct MainViewEnvironment {
-    public var orientationDidChange : AnyPublisher<NSNotification.Name, Never>
-    public var checkDictionary : (String) -> AnyPublisher<URLResponse, Error>.Failure
+extension AppState.WordViewState: Equatable {
+    static func ==(lhs: AppState.WordViewState, rhs: AppState.WordViewState) -> Bool {
+        return (lhs.removedIndex, lhs.selectedLetters) == (rhs.removedIndex, rhs.selectedLetters)
+    }
+}
+
+extension AppState: Equatable {
+    static func ==(lhs: AppState, rhs: AppState) -> Bool {
+        return (lhs.letterAnchors, lhs.removedIndex, lhs.selectedLetters, lhs.wordViewState) == (rhs.letterAnchors, rhs.removedIndex, rhs.selectedLetters, rhs.wordViewState)
+    }
+}
+
+enum AppAction {
+    case letterTapped(String)
+    case subViewAction(WordViewAction)
+    case letterAnchorsUpdated([LetterPreferenceData])
+}
+
+public struct AppEnvironment {
+    public var orientationDidChange : AnyPublisher<NSNotification.Name, Never> = Empty<NSNotification.Name, Never>().eraseToAnyPublisher()
+    public var requestDictionaryCheck : (String) -> AnyPublisher<URLResponse, Error> = { _ in Empty<URLResponse, Error>().eraseToAnyPublisher() }
+    public var requestPronunciation : (String) -> AnyPublisher<URLResponse, Error> = { _ in Empty<URLResponse, Error>().eraseToAnyPublisher() }
     public var uuid : () -> UUID
 }
 
-struct SubViewState {
-    
+let appReducer = Reducer<AppState, AppAction, AppEnvironment> { state, action, environment in
+    switch action {
+    case let .letterTapped(l):
+        let letter = Letter(hasAppeared: false, letter: l, id: environment.uuid())
+        if let index = state.removedIndex {
+            state.selectedLetters.insert(letter, at: index)
+            state.removedIndex = nil
+        } else {
+            state.selectedLetters.append(letter)
+        }
+        return .none
+    case .subViewAction(_):
+        return .none
+    case let .letterAnchorsUpdated(anchors):
+        state.letterAnchors = anchors
+        return .none
+    }
 }
 
+
 struct ContentView: View {
+    
+    @ObservedObject var viewStore : ViewStore<AppState, AppAction>
+    
+    init(_ store: Store<AppState, AppAction>) {
+        viewStore = ViewStore(store)
+    }
     
     let letters = [
         LetterBox(letters: ["a", "b", "c", "d", "e", "f"]),
@@ -45,32 +100,22 @@ struct ContentView: View {
         LetterBox(letters: ["u", "v", "w", "x", "y", "z", "space"])
     ]
     
-    @State private var deviceOrientation : UIDeviceOrientation?
     @State private var letterAnchors : [LetterPreferenceData] = []
     @State private var selectedLetters : [Letter] = []
     @State private var removedIndex : Int? = nil
     
     private let orientationDidChange = NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)
-//        .makeConnectable()
-//        .autoconnect()
-    
     
     var body: some View {
         GeometryReader { proxy in
             VStack {
                 VStack {
-                    ForEach(letters) { box in
+                    ForEach(viewStore.letters) { box in
                         HStack(alignment: .bottom, spacing: 20) {
                             ForEach(box.letters, id: \.self) { letter in
                                 Button(action: {
                                     withAnimation(.easeInOut) {
-                                        let letter = Letter(hasAppeared: false, letter: letter, id: UUID())
-                                        if let index = removedIndex  {
-                                            selectedLetters.insert(letter, at: index)
-                                            removedIndex = nil
-                                        } else {
-                                            selectedLetters.append(letter)
-                                        }
+                                        viewStore.send(.letterTapped(letter))
                                     }
                                 }, label: {
                                     Image(letter)
@@ -92,7 +137,9 @@ struct ContentView: View {
                 
                 Spacer()
                 WordView(proxy: proxy, topViewPreferenceData: letterAnchors, removedIndex: $removedIndex, selectedLetters: $selectedLetters)
-                    .padding([.leading, .trailing], 50)
+                    .frame(height: (min(proxy.size.width, proxy.size.height) / 7))
+                    .frame(maxWidth: proxy.size.width - proxy.size.width / 7)
+                    .padding([.bottom, .leading, .trailing], 50)
                 
             }
             .backgroundPreferenceValue(LetterBounds.self, { value in
@@ -100,14 +147,13 @@ struct ContentView: View {
                     Color.clear
                         .onAppear {
                             DispatchQueue.main.async {
-                                letterAnchors = value
+                                viewStore.send(.letterAnchorsUpdated(value))
                             }
                         }
                 }
             })
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        
     }
     
     func sizeForLetter(_ letter: String, with proxy: GeometryProxy) -> CGFloat {
@@ -116,9 +162,15 @@ struct ContentView: View {
     
 }
 
-struct LetterPreferenceData {
+struct LetterPreferenceData: Equatable {
     let id : String
     let anchor : Anchor<CGRect>
+}
+
+extension LetterPreferenceData {
+    static func ==(lhs: LetterPreferenceData, rhs: LetterPreferenceData) -> Bool {
+        return lhs.id == rhs.id
+    }
 }
 
 struct LetterBounds: PreferenceKey {
@@ -140,8 +192,6 @@ struct LetterHeightKey: PreferenceKey {
         value.append(contentsOf: nextValue())
     }
 }
-
-
 
 struct LetterHeightEnvironmentKey: EnvironmentKey {    
     static var defaultValue: CGFloat = 0

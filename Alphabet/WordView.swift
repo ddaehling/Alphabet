@@ -6,14 +6,28 @@
 //
 
 import SwiftUI
+import ComposableArchitecture
+
+enum WordViewAction {
+    case letterPressed(Letter, Bool)
+    case selectedIndexSet(Int?)
+    case clearButtonTapped
+}
 
 struct WordView: View {
+    
+    @ObservedObject var viewStore : ViewStore<AppState.WordViewState, WordViewAction>
+    
+    init(_ store: Store<AppState.WordViewState, WordViewAction>) {
+        viewStore = ViewStore(store)
+    }
     
     let proxy: GeometryProxy
     let topViewPreferenceData: [LetterPreferenceData]
     
     @Binding var removedIndex : Int?
     @Binding var selectedLetters : [Letter]
+    
     
     private var letterHeight : CGFloat {
         let totalWidth = selectedLetters.reduce(into: CGFloat(0)) { total, element in
@@ -45,7 +59,6 @@ struct WordView: View {
                     Spacer()
                     Button(action: { }, label: { Image(systemName: "speaker.wave.2.fill").renderingMode(.original) })
                 }
-//                .frame(height: letterHeight)
                 .padding([.trailing, .top, .bottom], 20)
                 .transition(.opacity)
                 .font(.system(.title))
@@ -55,7 +68,7 @@ struct WordView: View {
             
             ForEach(selectedLetters) { l in
                 LetterView(letter: l, originalLetterPreferenceData: topViewPreferenceData.filter { $0.id == l.letter }.first, proxy: proxy)
-                    .frame(width: letterHeight * aspectRatio(for: l, with: topViewPreferenceData, using: proxy),height: letterHeight)
+                    .frame(width: letterHeight * aspectRatio(for: l, with: topViewPreferenceData, using: proxy), height: letterHeight)
                     .onTapGesture {
                         removeLetter(l, isLongPress: false)
                     }
@@ -65,9 +78,7 @@ struct WordView: View {
                 
             }
         }
-        .frame(height: (min(proxy.size.width, proxy.size.height) / 7))
-        .frame(maxWidth: proxy.size.width - proxy.size.width / 7)
-        .padding(.bottom, 50)
+        
         
     }
     
@@ -75,7 +86,6 @@ struct WordView: View {
         let elementAnchor = preferenceData.filter { $0.id == letter.letter }.first!
         return  proxy[elementAnchor.anchor].size.width / proxy[elementAnchor.anchor].size.height
     }
-    
     
     func removeLetter(_ letter: Letter, isLongPress: Bool) {
         withAnimation(.easeInOut) {
