@@ -6,58 +6,72 @@
 //
 
 import SwiftUI
+import ComposableArchitecture
+
+struct LetterEnvironment {
+    var mainQueue : AnySchedulerOf<DispatchQueue>
+}
+
+enum LetterAction {
+    case letterHasAppeared
+    case preferenceDataChanged([LetterPreferenceData])
+}
+
+let letterReducer = Reducer<Letter, LetterAction, LetterEnvironment> { state, action, environment in
+    switch action {
+    case .letterHasAppeared:
+        withAnimation(.spring()) {
+            state.hasAppeared = true
+        }
+        return .none
+    case let .preferenceDataChanged(data):
+        state.bottomPreferenceData = data
+        return Effect(value: .letterHasAppeared)
+            .receive(on: environment.mainQueue)
+            .eraseToEffect()
+    }
+}
 
 struct LetterView: View {
     
-    @State var letter : Letter
-    @State var letterPreferenceData : [LetterPreferenceData] = []
-    
-    let originalLetterPreferenceData : LetterPreferenceData?
+    @ObservedObject var viewStore : ViewStore<Letter, LetterAction>
     let proxy : GeometryProxy
     
-    var offset : CGSize {
-        guard
-            let letterAnchor = letterPreferenceData.first?.anchor,
-            let originalLetterAnchor = originalLetterPreferenceData?.anchor
-        else {
-            return .zero
-        }
-//        let difference = proxy.size.width < proxy.size.height ? (proxy.size.width - proxy.size.height) / 2 : 0
-        return .init(
-            width: proxy[originalLetterAnchor].midX - proxy[letterAnchor].midX,
-            height: proxy[originalLetterAnchor].midY - proxy[letterAnchor].midY
-        )
+    init(store: Store<Letter, LetterAction>, proxy: GeometryProxy) {
+        self.viewStore = ViewStore(store)
+        self.proxy = proxy
     }
     
     var body: some View {
-        ZStack {
-            if letter.letter == "space" {
+        Group {
+            if viewStore.letter == "space" {
                 Image("i")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .opacity(0)
             } else {
-                Image(letter.letter)
+                Image(viewStore.letter)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
             }
-        }
-        .offset(letter.hasAppeared ? .zero : offset)
-        .anchorPreference(key: LetterBounds.self, value: .bounds, transform: { [LetterPreferenceData(id: "\(letter.id)", anchor: $0)] })
-        .onAppear {
-            withAnimation(.spring()) {
-                letter.hasAppeared = true
-            }
-        }
+        }        
+        .offset(viewStore.hasAppeared ? .zero : viewStore.state.offset(using: proxy))
+        .anchorPreference(
+            key: LetterBounds.self,
+            value: .bounds,
+            transform: { [LetterPreferenceData(id: "\(viewStore.id)", anchor: $0)] }
+        )
         .backgroundPreferenceValue(LetterBounds.self, { value in
             GeometryReader { proxy in
                 Color.clear
                     .onAppear {
-                        letterPreferenceData = value
+                        withAnimation(.spring()) {
+                            viewStore.send(.preferenceDataChanged(value))
+                        }
                     }
-                    
             }
         })
+        .onChange(of: viewStore.hasAppeared, perform: { print($0) })
     }
 }
 

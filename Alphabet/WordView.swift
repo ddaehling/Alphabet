@@ -7,93 +7,126 @@
 
 import SwiftUI
 import ComposableArchitecture
+import Combine
+
 
 enum WordViewAction {
     case letterPressed(Letter, Bool)
-    case selectedIndexSet(Int?)
     case clearButtonTapped
+    case letterAction(id: UUID, action: LetterAction)
+    case pronunciationButtonTapped
+    case pronunciationResponseReceived(APIResponse)
 }
+
+struct WordViewEnvironment {
+    var mainqueue : AnySchedulerOf<DispatchQueue>
+    var requestDictionaryCheck : (String, URLVariables) -> Effect<APIResponse, Never>
+}
+
+let wordViewReducer = Reducer<AppState.WordViewState, WordViewAction, WordViewEnvironment>.combine(
+    letterReducer.forEach(
+        state: \.selectedLetters,
+        action: /WordViewAction.letterAction(id:action:),
+        environment: { LetterEnvironment(mainQueue: $0.mainqueue) }
+    ),
+    Reducer { state, action, environment in
+        
+        struct RequestID: Hashable {}
+        
+        switch action {
+        case let .letterPressed(letter, isLongPressed):
+                state.removeLetter(letter, isLongPress: isLongPressed)
+            return .none
+        case .clearButtonTapped:
+            state.selectedLetters.removeAll()
+            return .none
+        case .letterAction:
+            return .none
+        case .pronunciationButtonTapped:
+            return environment.requestDictionaryCheck(state.selectedLetters.map{$0.letter}.joined(), state.urlVariables)
+                .map{ WordViewAction.pronunciationResponseReceived($0) }
+                .cancellable(id: RequestID(), cancelInFlight: true)
+                .eraseToEffect()
+        case let .pronunciationResponseReceived(response):
+            print("Got response!")
+            return .none
+        }
+    }
+)
 
 struct WordView: View {
     
     @ObservedObject var viewStore : ViewStore<AppState.WordViewState, WordViewAction>
-    
-    init(_ store: Store<AppState.WordViewState, WordViewAction>) {
-        viewStore = ViewStore(store)
-    }
-    
+    let store : Store<AppState.WordViewState, WordViewAction>
     let proxy: GeometryProxy
-    let topViewPreferenceData: [LetterPreferenceData]
     
-    @Binding var removedIndex : Int?
-    @Binding var selectedLetters : [Letter]
-    
-    
-    private var letterHeight : CGFloat {
-        let totalWidth = selectedLetters.reduce(into: CGFloat(0)) { total, element in
-            let elementAnchor = topViewPreferenceData.filter { $0.id == element.letter }.first!
-            let elementWidth = proxy[elementAnchor.anchor].size.width
-            return total += elementWidth
-        } + CGFloat((selectedLetters.count - 1)) * (spacing * 1)
-        let overshoot = max(0, totalWidth + (proxy.size.width / 4) - proxy.size.width)
-        let heightFactor = (totalWidth - overshoot) / totalWidth
-        
-        guard let originalHeightAnchor = topViewPreferenceData.first?.anchor else { return 0 }
-        let originalLetterHeight = proxy[originalHeightAnchor].size.height
-        return originalLetterHeight * heightFactor
+    init(_ store: Store<AppState.WordViewState, WordViewAction>, proxy: GeometryProxy) {
+        viewStore = ViewStore(store)
+        self.store = store
+        self.proxy = proxy
     }
-    
-    private let spacing = CGFloat(10)
     
     var body: some View {
-        HStack(spacing: spacing) {
-            if !selectedLetters.isEmpty {
-                VStack {
+        HStack(spacing: viewStore.spacing) {
+            if !viewStore.selectedLetters.isEmpty {
+                VStack(alignment: .center, spacing: 10) {
                     Button(action: {
                         withAnimation(.easeInOut) {
-                            selectedLetters.removeAll()
+                            viewStore.send(.clearButtonTapped)
                         }
-                    }, label: { Image(systemName: "arrow.counterclockwise").renderingMode(.original) })
-                    Spacer()
-                    Button(action: { }, label: { Image(systemName: "checkmark").renderingMode(.original) })
-                    Spacer()
-                    Button(action: { }, label: { Image(systemName: "speaker.wave.2.fill").renderingMode(.original) })
+                    }, label: {
+                        Image(systemName: "arrow.counterclockwise")
+                            .renderingMode(.original)
+                    })
+                    Button(action: {
+                        
+                    }, label: {
+                        Image(systemName: "checkmark")
+                            .renderingMode(.original)
+                    })
+                    Button(action: {
+                        viewStore.send(.pronunciationButtonTapped)
+                    }, label: {
+                        Image(systemName: "speaker.wave.2.fill")
+                            .renderingMode(.original)
+                    })
                 }
-                .padding([.trailing, .top, .bottom], 20)
+//                .padding([.top, .bottom], 25)
+//                .padding([.leading, .trailing], 10)
+//                .background(Image("button").resizable()
+//                                .background(Image("buttonbackground")
+//                                                .resizable()
+//                                                .offset(x: 10, y: 10)
+//                                )
+//                )
+                .padding([.top, .bottom], 20)
+                .padding([.trailing], 40)
                 .transition(.opacity)
                 .font(.system(.title))
-                
-                
             }
-            
-            ForEach(selectedLetters) { l in
-                LetterView(letter: l, originalLetterPreferenceData: topViewPreferenceData.filter { $0.id == l.letter }.first, proxy: proxy)
-                    .frame(width: letterHeight * aspectRatio(for: l, with: topViewPreferenceData, using: proxy), height: letterHeight)
-                    .onTapGesture {
-                        removeLetter(l, isLongPress: false)
-                    }
-                    .onLongPressGesture {
-                        removeLetter(l, isLongPress: true)
-                    }
+            ForEachStore(self.store.scope(state: { $0.selectedLetters }, action: WordViewAction.letterAction(id:action:)), content: { childStore in
+                WithViewStore(childStore) { letter in
+                    LetterView(store: childStore, proxy: proxy)
+                        .frame(
+                            width: viewStore.state.letterHeight(using: proxy) * viewStore.state.aspectRatio(for: letter.state, using: proxy),
+                            height: viewStore.state.letterHeight(using: proxy))
+                        .onTapGesture {
+                            withAnimation(.easeInOut) {
+                                viewStore.send(.letterPressed(letter.state, false))
+                            }
+                            
+                        }
+                        .onLongPressGesture {
+                            withAnimation(.easeInOut) {
+                                viewStore.send(.letterPressed(letter.state, true))
+                            }
+                            
+                        }
+                        .transition(AnyTransition.identity)
+                }
+                            
                 
-            }
-        }
-        
-        
-    }
-    
-    func aspectRatio(for letter: Letter, with preferenceData : [LetterPreferenceData], using proxy: GeometryProxy) -> CGFloat {
-        let elementAnchor = preferenceData.filter { $0.id == letter.letter }.first!
-        return  proxy[elementAnchor.anchor].size.width / proxy[elementAnchor.anchor].size.height
-    }
-    
-    func removeLetter(_ letter: Letter, isLongPress: Bool) {
-        withAnimation(.easeInOut) {
-            guard let index = selectedLetters.firstIndex(where:{ $0.id == letter.id }) else { return }
-            selectedLetters.remove(at: index)
-            if isLongPress {
-                removedIndex = index
-            }
+            })
         }
     }
 }

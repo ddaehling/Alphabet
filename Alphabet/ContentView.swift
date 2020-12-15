@@ -9,102 +9,136 @@ import SwiftUI
 import Combine
 import ComposableArchitecture
 
-struct AppState {
-    let proxy : GeometryProxy
-    let letters = [
-        LetterBox(letters: ["a", "b", "c", "d", "e", "f"]),
-        LetterBox(letters: ["g", "h", "i", "j", "k", "l", "m"]),
-        LetterBox(letters: ["n", "o", "p", "q", "r", "s", "t"]),
-        LetterBox(letters: ["u", "v", "w", "x", "y", "z", "space"])
-    ]
+struct AppState: Equatable {
+    let letters = LetterBox.basic
     var letterAnchors : [LetterPreferenceData] = []
-    var selectedLetters : [Letter] = []
+    var selectedLetters : IdentifiedArrayOf<Letter> = []
     var removedIndex : Int?
+    var orientation : UIDeviceOrientation
 
     var wordViewState : WordViewState {
         get { .init(
-            proxy: self.proxy,
             topViewLetterAnchors: self.letterAnchors,
             removedIndex: self.removedIndex,
             selectedLetters: self.selectedLetters
         )
         }
-        set { (self.removedIndex, self.selectedLetters, self.removedIndex, self.selectedLetters) = (newValue.removedIndex, newValue.selectedLetters, newValue.removedIndex, newValue.selectedLetters ) }
+        set { (self.removedIndex, self.selectedLetters) = (newValue.removedIndex, newValue.selectedLetters) }
     }
 
-    struct WordViewState {
-        var proxy : GeometryProxy
+    struct WordViewState: Equatable {
         var topViewLetterAnchors : [LetterPreferenceData]
         var removedIndex : Int?
-        var selectedLetters : [Letter]
-    }
-}
-
-extension AppState.WordViewState: Equatable {
-    static func ==(lhs: AppState.WordViewState, rhs: AppState.WordViewState) -> Bool {
-        return (lhs.removedIndex, lhs.selectedLetters) == (rhs.removedIndex, rhs.selectedLetters)
-    }
-}
-
-extension AppState: Equatable {
-    static func ==(lhs: AppState, rhs: AppState) -> Bool {
-        return (lhs.letterAnchors, lhs.removedIndex, lhs.selectedLetters, lhs.wordViewState) == (rhs.letterAnchors, rhs.removedIndex, rhs.selectedLetters, rhs.wordViewState)
+        var selectedLetters : IdentifiedArrayOf<Letter>
+        
+        let spacing : CGFloat = 10
+        
+        var urlVariables = URLVariables()
+        
+        func letterHeight(using proxy: GeometryProxy) -> CGFloat {
+            let totalWidth = selectedLetters.reduce(into: CGFloat(0)) { total, element in
+                let elementAnchor = topViewLetterAnchors.filter { $0.id == element.letter }.first!
+                let elementWidth = proxy[elementAnchor.anchor].size.width
+                return total += elementWidth
+            } + CGFloat((selectedLetters.count - 1)) * (spacing * 1)
+            let overshoot = max(0, totalWidth + (proxy.size.width / 4) - proxy.size.width)
+            let heightFactor = (totalWidth - overshoot) / totalWidth
+            
+            guard let originalHeightAnchor = topViewLetterAnchors.first?.anchor else { return 0 }
+            let originalLetterHeight = proxy[originalHeightAnchor].size.height
+            return originalLetterHeight * heightFactor
+        }
+        
+        func aspectRatio(for letter: Letter, using proxy: GeometryProxy) -> CGFloat {
+            let elementAnchor = topViewLetterAnchors.filter { $0.id == letter.letter }.first!
+            return  proxy[elementAnchor.anchor].size.width / proxy[elementAnchor.anchor].size.height
+        }
+        
+        mutating func removeLetter(_ letter: Letter, isLongPress: Bool) {
+            withAnimation(.easeInOut) {
+                guard let index = selectedLetters.firstIndex(where:{ $0.id == letter.id }) else { return }
+                selectedLetters.remove(at: index)
+                if isLongPress {
+                    removedIndex = index
+                }
+            }
+        }
     }
 }
 
 enum AppAction {
-    case letterTapped(String)
-    case subViewAction(WordViewAction)
     case letterAnchorsUpdated([LetterPreferenceData])
+    case letterTapped(String)
+    case onAppear
+    case onDisappear
+    case orientationDidChange
+    case wordViewAction(WordViewAction)
+    
 }
 
 public struct AppEnvironment {
-    public var orientationDidChange : AnyPublisher<NSNotification.Name, Never> = Empty<NSNotification.Name, Never>().eraseToAnyPublisher()
-    public var requestDictionaryCheck : (String) -> AnyPublisher<URLResponse, Error> = { _ in Empty<URLResponse, Error>().eraseToAnyPublisher() }
-    public var requestPronunciation : (String) -> AnyPublisher<URLResponse, Error> = { _ in Empty<URLResponse, Error>().eraseToAnyPublisher() }
+    public typealias Notification = NotificationCenter.Publisher.Output
+    public typealias Failure = NotificationCenter.Publisher.Failure
+    
+    public var requestDictionaryCheck : (String, URLVariables) -> Effect<APIResponse, Never>
+    public var requestPronunciation : (String) -> AnyPublisher<APIResponse, Never> = { _ in Empty<APIResponse, Never>().eraseToAnyPublisher() }
     public var uuid : () -> UUID
+    public var mainQueue : AnySchedulerOf<DispatchQueue>
+    public var orientationDidChange : Effect<Notification, Failure>
+    
 }
 
-let appReducer = Reducer<AppState, AppAction, AppEnvironment> { state, action, environment in
-    switch action {
-    case let .letterTapped(l):
-        let letter = Letter(hasAppeared: false, letter: l, id: environment.uuid())
-        if let index = state.removedIndex {
-            state.selectedLetters.insert(letter, at: index)
-            state.removedIndex = nil
-        } else {
-            state.selectedLetters.append(letter)
+let appReducer = Reducer<AppState, AppAction, AppEnvironment>.combine(
+    wordViewReducer.pullback(
+        state: \.wordViewState,
+        action: /AppAction.wordViewAction,
+        environment: { WordViewEnvironment(mainqueue: $0.mainQueue, requestDictionaryCheck: $0.requestDictionaryCheck) }
+    ),
+    Reducer { state, action, environment in
+        
+        struct OrientationDidChange: Hashable {}
+        
+        switch action {
+        case let .letterTapped(l):
+            guard !state.letterAnchors.isEmpty else { fatalError("Letter anchors not yet set.") }
+            let letter = Letter(hasAppeared: false, letter: l, id: environment.uuid(), topPreferenceData: state.letterAnchors.filter { $0.id == l }.first! )
+            if let index = state.removedIndex {
+                state.selectedLetters.insert(letter, at: index)
+                state.removedIndex = nil
+            } else {
+                state.selectedLetters.append(letter)
+            }
+            return .none
+        case .wordViewAction(_):
+            return .none
+        case let .letterAnchorsUpdated(anchors):
+            state.letterAnchors = anchors
+            return .none
+        case .onAppear:
+            return environment.orientationDidChange
+                .receive(on: environment.mainQueue)
+                .map { _ in AppAction.orientationDidChange }
+                .eraseToEffect()
+                .cancellable(id: OrientationDidChange())
+        case .onDisappear:
+            return .none
+        case .orientationDidChange:
+            state.orientation = UIDevice.current.orientation
+            return .none
         }
-        return .none
-    case .subViewAction(_):
-        return .none
-    case let .letterAnchorsUpdated(anchors):
-        state.letterAnchors = anchors
-        return .none
     }
-}
+)
 
 
 struct ContentView: View {
     
     @ObservedObject var viewStore : ViewStore<AppState, AppAction>
+    private let store: Store<AppState, AppAction>
     
     init(_ store: Store<AppState, AppAction>) {
         viewStore = ViewStore(store)
+        self.store = store
     }
-    
-    let letters = [
-        LetterBox(letters: ["a", "b", "c", "d", "e", "f"]),
-        LetterBox(letters: ["g", "h", "i", "j", "k", "l", "m"]),
-        LetterBox(letters: ["n", "o", "p", "q", "r", "s", "t"]),
-        LetterBox(letters: ["u", "v", "w", "x", "y", "z", "space"])
-    ]
-    
-    @State private var letterAnchors : [LetterPreferenceData] = []
-    @State private var selectedLetters : [Letter] = []
-    @State private var removedIndex : Int? = nil
-    
-    private let orientationDidChange = NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)
     
     var body: some View {
         GeometryReader { proxy in
@@ -136,11 +170,11 @@ struct ContentView: View {
                 .padding(.top, 50)
                 
                 Spacer()
-                WordView(proxy: proxy, topViewPreferenceData: letterAnchors, removedIndex: $removedIndex, selectedLetters: $selectedLetters)
+                
+                WordView(store.scope(state: { $0.wordViewState }, action: AppAction.wordViewAction), proxy: proxy)
                     .frame(height: (min(proxy.size.width, proxy.size.height) / 7))
                     .frame(maxWidth: proxy.size.width - proxy.size.width / 7)
                     .padding([.bottom, .leading, .trailing], 50)
-                
             }
             .backgroundPreferenceValue(LetterBounds.self, { value in
                 GeometryReader { proxy in
@@ -154,6 +188,8 @@ struct ContentView: View {
             })
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .onAppear { viewStore.send(.onAppear) }
+        .onDisappear { viewStore.send(.onDisappear) }
     }
     
     func sizeForLetter(_ letter: String, with proxy: GeometryProxy) -> CGFloat {
@@ -172,6 +208,8 @@ extension LetterPreferenceData {
         return lhs.id == rhs.id
     }
 }
+
+
 
 struct LetterBounds: PreferenceKey {
     static var defaultValue: [LetterPreferenceData] = []

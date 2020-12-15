@@ -7,16 +7,23 @@
 
 import SwiftUI
 import ComposableArchitecture
+import Combine
 
 @main
 struct AlphabetApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(Store(
-                initialState: AppState(),
+                initialState: AppState(orientation: UIDevice.current.orientation),
                 reducer: appReducer,
                 environment: AppEnvironment(
-                    uuid: UUID.init)
+                    requestDictionaryCheck: DictionaryRequest.live.spellingRequest,
+                    uuid: UUID.init,
+                    mainQueue: DispatchQueue.main.eraseToAnyScheduler(),
+                    orientationDidChange: NotificationCenter.default
+                        .publisher(for: UIDevice.orientationDidChangeNotification)
+                        .eraseToEffect()
+                )
             )
             )
         }
