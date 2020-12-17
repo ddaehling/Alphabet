@@ -17,10 +17,10 @@ public struct URLVariables: Equatable {
     public let strictMatch : String
     
     public init(
-        appId : String = "<my_app_id>",
-        appKey : String = "<my_app_key>",
+        appId : String = "<9fc38dd6>",
+        appKey : String = "<5d8333e006c48bf3118e2c710dbe72bf>",
         language : String = "eng-gb",
-        fields : String = "pronunciation",
+        fields : String = "pronunciations",
         strictMatch : String = "false") {
         self.appId = appId
         self.appKey = appKey
@@ -31,13 +31,13 @@ public struct URLVariables: Equatable {
 }
 
 public struct DictionaryRequest {
-    public var spellingRequest : (String, URLVariables) -> Effect<APIResponse, Never>
+    public var spellingRequest : (String, URLVariables) -> Effect<Response, Never>
     
-    public init(spellingRequest: @escaping (String, URLVariables) -> Effect<APIResponse, Never>,
+    public init(spellingRequest: @escaping (String, URLVariables) -> Effect<Response, Never>,
                 components: URLVariables = URLVariables()
     ) { self.spellingRequest = spellingRequest }
 }
 
-public struct APIError: Decodable, Error {
-    public let statusCode: Int
+public struct APIError: Codable, Error {
+    public let error: String
 }

@@ -20,7 +20,6 @@ struct Letter: Equatable, Identifiable {
             let bottomAnchor = bottomPreferenceData.first?.anchor,
             let topAnchor = topPreferenceData?.anchor
         else {
-            print("Failed")
             return .zero
         }
 //        let difference = proxy.size.width < proxy.size.height ? (proxy.size.width - proxy.size.height) / 2 : 0
@@ -28,7 +27,6 @@ struct Letter: Equatable, Identifiable {
             width: proxy[bottomAnchor].midX - proxy[topAnchor].midX,
             height: proxy[bottomAnchor].midY - proxy[topAnchor].midY
         )
-        print(offset)
         return offset
     }
     

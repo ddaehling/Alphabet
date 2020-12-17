@@ -80,8 +80,8 @@ public struct AppEnvironment {
     public typealias Notification = NotificationCenter.Publisher.Output
     public typealias Failure = NotificationCenter.Publisher.Failure
     
-    public var requestDictionaryCheck : (String, URLVariables) -> Effect<APIResponse, Never>
-    public var requestPronunciation : (String) -> AnyPublisher<APIResponse, Never> = { _ in Empty<APIResponse, Never>().eraseToAnyPublisher() }
+    public var requestDictionaryCheck : (String, URLVariables) -> Effect<Response, Never>
+    public var requestPronunciation : (String) -> AnyPublisher<Response, Never> = { _ in Empty<Response, Never>().eraseToAnyPublisher() }
     public var uuid : () -> UUID
     public var mainQueue : AnySchedulerOf<DispatchQueue>
     public var orientationDidChange : Effect<Notification, Failure>

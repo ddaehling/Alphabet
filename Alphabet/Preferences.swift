@@ -16,7 +16,6 @@ struct AverageHeightPropagator: ViewModifier {
                 DispatchQueue.main.async {
                     let allHeights = value.reduce(0, +)
                     averageHeight = allHeights / CGFloat(value.count)
-                    print(averageHeight)
                 }
                 
             })

@@ -71,7 +71,6 @@ struct LetterView: View {
                     }
             }
         })
-        .onChange(of: viewStore.hasAppeared, perform: { print($0) })
     }
 }
 

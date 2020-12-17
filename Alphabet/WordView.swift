@@ -15,12 +15,12 @@ enum WordViewAction {
     case clearButtonTapped
     case letterAction(id: UUID, action: LetterAction)
     case pronunciationButtonTapped
-    case pronunciationResponseReceived(APIResponse)
+    case pronunciationResponseReceived(Response)
 }
 
 struct WordViewEnvironment {
     var mainqueue : AnySchedulerOf<DispatchQueue>
-    var requestDictionaryCheck : (String, URLVariables) -> Effect<APIResponse, Never>
+    var requestDictionaryCheck : (String, URLVariables) -> Effect<Response, Never>
 }
 
 let wordViewReducer = Reducer<AppState.WordViewState, WordViewAction, WordViewEnvironment>.combine(
@@ -48,7 +48,7 @@ let wordViewReducer = Reducer<AppState.WordViewState, WordViewAction, WordViewEn
                 .cancellable(id: RequestID(), cancelInFlight: true)
                 .eraseToEffect()
         case let .pronunciationResponseReceived(response):
-            print("Got response!")
+//            print(response)
             return .none
         }
     }

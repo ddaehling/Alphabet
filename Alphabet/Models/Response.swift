@@ -7,7 +7,20 @@
 import Foundation
 
 // MARK: - ApiResponse
+
 public struct APIResponse: Codable {
+    public let statusCode: Int
+    public let text: String
+    public let response: Response
+    
+    enum CodingKeys: String, CodingKey {
+        case statusCode = "status_code"
+        case text
+        case response
+    }
+}
+
+public struct Response: Codable {
     public let id: String
     public let metadata: Metadata
     public let results: [Result]
@@ -52,7 +65,7 @@ public struct LexicalCategory: Codable {
     public let id, text: String
 }
 
-public extension APIResponse {
+public extension Response {
     static let mock = Self(
         id: "mock",
         metadata: Metadata(operation: "retrieve",
@@ -105,28 +118,29 @@ public extension APIResponse {
         ],
         word: "mock")
     
-    static let empty = Self(id: "",
-                                   metadata: Metadata(operation: "", provider: "", schema: ""),
-                                   results: [
-                                    Result(id: "",
-                                           language: "",
-                                           lexicalEntries: [
-                                            LexicalEntry(entries: [
-                                                Entry(homographNumber: nil,
-                                                      pronunciations: [
-                                                        Pronunciation(audioFile: "",
-                                                                      dialects: [""],
-                                                                      phoneticNotation: "",
-                                                                      phoneticSpelling: "")
-                                                      ])
-                                            ],
-                                            language: "",
-                                            lexicalCategory: LexicalCategory(id: "",
-                                                                             text: ""),
-                                            text: "")
-                                           ],
-                                           type: "",
-                                           word: "")
-                                   ],
-                                   word: "")
+    static let empty = Self(
+        id: "",
+        metadata: Metadata(operation: "", provider: "", schema: ""),
+        results: [
+            Result(id: "",
+                   language: "",
+                   lexicalEntries: [
+                    LexicalEntry(entries: [
+                        Entry(homographNumber: nil,
+                              pronunciations: [
+                                Pronunciation(audioFile: "",
+                                              dialects: [""],
+                                              phoneticNotation: "",
+                                              phoneticSpelling: "")
+                              ])
+                    ],
+                    language: "",
+                    lexicalCategory: LexicalCategory(id: "",
+                                                     text: ""),
+                    text: "")
+                   ],
+                   type: "",
+                   word: "")
+        ],
+        word: "")
 }
