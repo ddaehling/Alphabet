@@ -20,15 +20,17 @@ enum LetterAction {
 let letterReducer = Reducer<Letter, LetterAction, LetterEnvironment> { state, action, environment in
     switch action {
     case .letterHasAppeared:
+        state.opacity = 1
         withAnimation(.spring()) {
             state.hasAppeared = true
         }
         return .none
     case let .preferenceDataChanged(data):
         state.bottomPreferenceData = data
-        return Effect(value: .letterHasAppeared)
+        return Effect(value: LetterAction.letterHasAppeared)
             .receive(on: environment.mainQueue)
             .eraseToEffect()
+            
     }
 }
 
@@ -54,7 +56,8 @@ struct LetterView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
             }
-        }        
+        }
+        .opacity(viewStore.opacity)
         .offset(viewStore.hasAppeared ? .zero : viewStore.state.offset(using: proxy))
         .anchorPreference(
             key: LetterBounds.self,
@@ -71,6 +74,7 @@ struct LetterView: View {
                     }
             }
         })
+//        .onAppear { viewStore.send(.letterHasAppeared) }
     }
 }
 

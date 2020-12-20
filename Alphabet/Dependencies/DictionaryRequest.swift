@@ -9,14 +9,14 @@ import Foundation
 import Combine
 import ComposableArchitecture
 
-public struct URLVariables: Equatable {
-    public let appId : String
-    public let appKey : String
-    public let language : String
-    public let fields : String
-    public let strictMatch : String
+struct URLVariables: Equatable {
+    let appId : String
+    let appKey : String
+    let language : String
+    let fields : String
+    let strictMatch : String
     
-    public init(
+   init(
         appId : String = "<9fc38dd6>",
         appKey : String = "<5d8333e006c48bf3118e2c710dbe72bf>",
         language : String = "eng-gb",
@@ -30,14 +30,20 @@ public struct URLVariables: Equatable {
     }
 }
 
-public struct DictionaryRequest {
-    public var spellingRequest : (String, URLVariables) -> Effect<Response, Never>
+enum APIError: Error {
     
-    public init(spellingRequest: @escaping (String, URLVariables) -> Effect<Response, Never>,
-                components: URLVariables = URLVariables()
-    ) { self.spellingRequest = spellingRequest }
 }
 
-public struct APIError: Codable, Error {
-    public let error: String
+typealias Result = Result<Data, APIError>
+
+struct DictionaryRequest {
+    var pronunciationRequest : (String, URLVariables, Cache<String, Data>) -> Effect<Data, Never>
+    
+    init(pronunciationRequest: @escaping (String, URLVariables, Cache<String, Data>) -> Effect<Data, Never>,
+                components: URLVariables = URLVariables()
+    ) { self.pronunciationRequest = pronunciationRequest }
+}
+
+struct APIError: Codable, Error {
+    let error: String
 }

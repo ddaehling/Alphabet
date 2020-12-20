@@ -13,6 +13,7 @@ struct Letter: Equatable, Identifiable {
     let letter: String
     let id: UUID
     var topPreferenceData : LetterPreferenceData?
+    var opacity : Double = 0
     var bottomPreferenceData : [LetterPreferenceData] = []
     
     func offset(using proxy: GeometryProxy) -> CGSize {

@@ -8,6 +8,7 @@
 import SwiftUI
 import Combine
 import ComposableArchitecture
+import AVFoundation
 
 struct AppState: Equatable {
     let letters = LetterBox.basic
@@ -32,6 +33,7 @@ struct AppState: Equatable {
         var selectedLetters : IdentifiedArrayOf<Letter>
         
         let spacing : CGFloat = 10
+        var player : AVAudioPlayer? = nil
         
         var urlVariables = URLVariables()
         
@@ -76,15 +78,17 @@ enum AppAction {
     
 }
 
-public struct AppEnvironment {
-    public typealias Notification = NotificationCenter.Publisher.Output
-    public typealias Failure = NotificationCenter.Publisher.Failure
+struct AppEnvironment {
+    typealias Notification = NotificationCenter.Publisher.Output
+    typealias Failure = NotificationCenter.Publisher.Failure
     
-    public var requestDictionaryCheck : (String, URLVariables) -> Effect<Response, Never>
-    public var requestPronunciation : (String) -> AnyPublisher<Response, Never> = { _ in Empty<Response, Never>().eraseToAnyPublisher() }
-    public var uuid : () -> UUID
-    public var mainQueue : AnySchedulerOf<DispatchQueue>
-    public var orientationDidChange : Effect<Notification, Failure>
+    var requestDictionaryEntry: (String, URLVariables, Cache<String, Data>) -> Effect<Data, Never>
+    var uuid: () -> UUID
+    var mainQueue: AnySchedulerOf<DispatchQueue>
+    var orientationDidChange: Effect<Notification, Failure>
+    var audioPlayer: (Data) throws -> AVAudioPlayer
+    var fileManager: FileManager
+    var cache : Cache<String, Data>
     
 }
 
@@ -92,7 +96,14 @@ let appReducer = Reducer<AppState, AppAction, AppEnvironment>.combine(
     wordViewReducer.pullback(
         state: \.wordViewState,
         action: /AppAction.wordViewAction,
-        environment: { WordViewEnvironment(mainqueue: $0.mainQueue, requestDictionaryCheck: $0.requestDictionaryCheck) }
+        environment: { WordViewEnvironment(
+            mainqueue: $0.mainQueue,
+            requestDictionaryCheck: $0.requestDictionaryEntry,
+            audioPlayer: $0.audioPlayer,
+            fileManager: $0.fileManager,
+            cache: $0.cache
+        )
+        }
     ),
     Reducer { state, action, environment in
         
@@ -188,6 +199,7 @@ struct ContentView: View {
             })
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .background(Color.white)
         .onAppear { viewStore.send(.onAppear) }
         .onDisappear { viewStore.send(.onDisappear) }
     }
