@@ -40,7 +40,7 @@ enum APIError: Error, Equatable {
 typealias APIResult = Result<APIResponse, APIError>
 typealias AudioRequestResult = Result<Data, APIError>
 
-typealias DictionaryRequest = (String, URLVariables, Cache<String, Data>, AnySchedulerOf<DispatchQueue>) -> AnyPublisher<APIResult, Never>
+typealias DictionaryRequest = (String, URLVariables) -> AnyPublisher<APIResult, Never>
 typealias _PronunciationRequest = (String, URLVariables, Cache<String, Data>, AnySchedulerOf<DispatchQueue>) -> Effect<AudioRequestResult, Never>
 typealias PronunciationRequest = (String, URLVariables, Cache<String, Data>, AnySchedulerOf<DispatchQueue>, DictionaryRequest) -> Effect<AudioRequestResult, Never>
 

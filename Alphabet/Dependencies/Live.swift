@@ -11,7 +11,7 @@ import ComposableArchitecture
 
 extension APIRequest {
     public static let live = Self(
-        dictionaryRequest: { word, variables, cache, mainQueue in
+        dictionaryRequest: { word, variables in
             let word_id = word.lowercased()
             let apiKey = "2493d6db-83a3-46ca-a6d1-7b1b7924822b"
             guard let url = URL(string: "https://www.dictionaryapi.com/api/v3/references/learners/json/\(word_id)?key=\(apiKey)") else { fatalError("Invalid URL") }
@@ -70,33 +70,33 @@ extension APIRequest {
                     .eraseToEffect()
             }
             
-            return dictionaryRequest(word, variables, cache, mainQueue)
+            return dictionaryRequest(word, variables)
                 .flatMap { response -> AnyPublisher<AudioRequestResult, Never> in
                     
-                    if case let .failure(error) = response {
-                        return Just(.failure(error)).eraseToAnyPublisher()
-                    } 
-                    
-                    guard case let .success(response) = response,
-                          let firstElement = response.elements.first,
-                          let audio = firstElement.hwi?.prs?[0].sound?.audio,
-                          let subDirectory = audio.first,
-                          let audioURL = URL(string: "https://media.merriam-webster.com/audio/prons/en/us/mp3/\(String(subDirectory))/\(audio).mp3") else {
-                        print("Failed initializing url")
-                        fatalError()
-                    }
-                    let mp3RequestPublisher = URLSession.shared.dataTaskPublisher(for: audioURL).share()
-                    return mp3RequestPublisher
-                        .catch { _ in
-                            mp3RequestPublisher
-                                .delay(for: 1, scheduler: mainQueue)
-                                .eraseToAnyPublisher()
+                    switch response {
+                    case let .success(response):
+                        guard let firstElement = response.elements.first,
+                              let audio = firstElement.hwi?.prs?[0].sound?.audio,
+                              let subDirectory = audio.first,
+                              let audioURL = URL(string: "https://media.merriam-webster.com/audio/prons/en/us/mp3/\(String(subDirectory))/\(audio).mp3") else {
+                            print("Failed initializing url")
+                            fatalError()
                         }
-                        .retry(3)
-                        .map { .success($0.data) }
-                        .replaceError(with: .failure(.unknown("An unknown error occurred.")))
-                        .eraseToAnyPublisher()
-                        
+                        let mp3RequestPublisher = URLSession.shared.dataTaskPublisher(for: audioURL).share()
+                        return mp3RequestPublisher
+                            .catch { _ in
+                                mp3RequestPublisher
+                                    .delay(for: 1, scheduler: mainQueue)
+                                    .eraseToAnyPublisher()
+                            }
+                            .retry(3)
+                            .map { .success($0.data) }
+                            .replaceError(with: .failure(.unknown("An unknown error occurred.")))
+                            .eraseToAnyPublisher()
+                    case let .failure(error):
+                        return Just(.failure(error)).eraseToAnyPublisher()
+                    }
+                    
                 }
                 .eraseToEffect()
         }
