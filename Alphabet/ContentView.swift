@@ -16,26 +16,32 @@ struct AppState: Equatable {
     var selectedLetters : IdentifiedArrayOf<Letter> = []
     var removedIndex : Int?
     var orientation : UIDeviceOrientation
+    var alert : AlertState<WordViewAction>?
 
     var wordViewState : WordViewState {
         get { .init(
             topViewLetterAnchors: self.letterAnchors,
             removedIndex: self.removedIndex,
-            selectedLetters: self.selectedLetters
+            selectedLetters: self.selectedLetters,
+            alert: self.alert
         )
         }
-        set { (self.removedIndex, self.selectedLetters) = (newValue.removedIndex, newValue.selectedLetters) }
+        set { (self.removedIndex, self.selectedLetters, self.alert) = (newValue.removedIndex, newValue.selectedLetters, newValue.alert) }
     }
 
     struct WordViewState: Equatable {
+        let spacing : CGFloat = 10
+        
         var topViewLetterAnchors : [LetterPreferenceData]
         var removedIndex : Int?
         var selectedLetters : IdentifiedArrayOf<Letter>
-        
-        let spacing : CGFloat = 10
+        var alert : AlertState<WordViewAction>?
         var player : AVAudioPlayer? = nil
-        
         var urlVariables = URLVariables()
+        
+        var currentWord : String {
+            selectedLetters.map{$0.letter}.joined()
+        }
         
         func letterHeight(using proxy: GeometryProxy) -> CGFloat {
             let totalWidth = selectedLetters.reduce(into: CGFloat(0)) { total, element in
@@ -82,7 +88,7 @@ struct AppEnvironment {
     typealias Notification = NotificationCenter.Publisher.Output
     typealias Failure = NotificationCenter.Publisher.Failure
     
-    var requestDictionaryEntry: (String, URLVariables, Cache<String, Data>) -> Effect<Data, Never>
+    var requestDictionaryEntry: (String, URLVariables, Cache<String, Data>, AnySchedulerOf<DispatchQueue>) -> Effect<AudioRequestResult, Never>
     var uuid: () -> UUID
     var mainQueue: AnySchedulerOf<DispatchQueue>
     var orientationDidChange: Effect<Notification, Failure>
@@ -178,7 +184,7 @@ struct ContentView: View {
                         }
                     }
                 }
-                .padding(.top, 50)
+                .padding([.top, .leading, .trailing], 50)
                 
                 Spacer()
                 

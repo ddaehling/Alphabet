@@ -6,6 +6,15 @@
 
 import Foundation
 
+struct NoEntryFound: Codable {
+    let aproximates : [String]
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        aproximates = try container.decode([String].self)
+    }
+}
+
 struct APIResponseElement: Codable {
     let shortdef: [String]?
     let hwi: Hwi?

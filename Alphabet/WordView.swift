@@ -10,18 +10,18 @@ import ComposableArchitecture
 import Combine
 import AVFoundation
 
-enum WordViewAction {
+enum WordViewAction: Equatable {
     case letterPressed(Letter, Bool)
     case clearButtonTapped
     case letterAction(id: UUID, action: LetterAction)
     case pronunciationButtonTapped
-    case pronunciationResponseReceived(Data)
-    case playerItemStatusChanged(AVPlayerItem.Status)
+    case pronunciationResponseReceived(AudioRequestResult)
+    case dismissAlert
 }
 
 struct WordViewEnvironment {
     var mainqueue : AnySchedulerOf<DispatchQueue>
-    var requestDictionaryCheck : (String, URLVariables, Cache<String, Data>) -> Effect<Data, Never>
+    var requestDictionaryCheck : (String, URLVariables, Cache<String, Data>, AnySchedulerOf<DispatchQueue>) -> Effect<AudioRequestResult, Never>
     var audioPlayer: (Data) throws -> AVAudioPlayer
     var fileManager: FileManager
     var cache : Cache<String, Data>
@@ -49,72 +49,46 @@ let wordViewReducer = Reducer<AppState.WordViewState, WordViewAction, WordViewEn
         case .letterAction:
             return .none
         case .pronunciationButtonTapped:
-            return environment.requestDictionaryCheck(state.selectedLetters.map{$0.letter}.joined(), state.urlVariables, environment.cache)
+            return environment.requestDictionaryCheck(state.currentWord, state.urlVariables, environment.cache, environment.mainqueue)
                 .map{ WordViewAction.pronunciationResponseReceived($0) }
                 .cancellable(id: RequestID(), cancelInFlight: true)
                 .receive(on: environment.mainqueue)
                 .eraseToEffect()
-        case let .pronunciationResponseReceived(mp3Data):
-            environment.cache.insertValue(mp3Data, for: state.selectedLetters.map{$0.letter}.joined())
-            
-            do {
-                state.player = try environment.audioPlayer(mp3Data)
-                state.player!.prepareToPlay()
-                print("Player initialized with data.")
-            } catch let error {
-                print(error.localizedDescription)
-                return .none
+        case let .pronunciationResponseReceived(result):
+            switch result {
+            case let .success(mp3Data):
+                environment.cache.insertValue(mp3Data, for: state.currentWord)
+                do {
+                    state.player = try environment.audioPlayer(mp3Data)
+                    state.player!.prepareToPlay()
+                } catch let error {
+                    return .none
+                }
+            case let .failure(error):
+                switch error {
+                case .corruptedJSONData, .httpURLResponseStatusCode:
+                    fatalError()
+                case .noEntryFound:
+                    state.alert = .init(
+                        title: "Whoops!",
+                        message: "No word found. Check your spelling!",
+                        dismissButton: .default("Ok", send: .dismissAlert)
+                    )
+                    return .none
+                case let .unknown(message):
+                    state.alert = .init(
+                        title: "Whoops!",
+                        message: .init(message),
+                        dismissButton: .default("Ok", send: .dismissAlert)
+                    )
+                    return .none
+                }
             }
-            
             state.player!.play()
             return .none
-//            guard let firstElement = response.elements.first,
-//                  let audio = firstElement.hwi.prs?[0].sound.audio,
-//                  let subDirectory = audio.first,
-//                  let audioURL = URL(string: "https://media.merriam-webster.com/audio/prons/en/us/mp3/\(String(subDirectory))/\(audio).mp3") else {
-//                print("Failed initializing url")
-//                return .none
-//            }
-//            let asset = AVAsset(url: audioURL)
-//            state.currentPlayerItem = AVPlayerItem(asset: asset)
-//            state.player = environment.audioPlayer(AVPlayerItem(asset: asset))
-//            switch state.player!.status {
-//            case .unknown:
-//                print("Unknown player status")
-//            case .readyToPlay:
-//                print("Ready to play player status")
-//            case .failed:
-//                print("Failed player status")
-//            @unknown default:
-//                fatalError()
-//            }
-//            return state.player!.currentItem!.publisher(for: \.status)
-//                .receive(on: environment.mainqueue)
-//                .map { WordViewAction.playerItemStatusChanged($0) }
-//                .eraseToEffect()
-//                .cancellable(id: ItemStatusID())
-//
-            
-//
-//            let x = state.player!.currentItem?.publisher(for: \.status).eraseToAnyPublisher()
-//
-//
-//            return .none
-        case let .playerItemStatusChanged(status):
-            switch status {
-            case .unknown:
-                print("Status unknown")
-                return .none
-            case .readyToPlay:
-                print("Ready to play")
-
-                return .none
-            case .failed:
-                print("Failed")
-                return .none
-            @unknown default:
-                return .none
-            }
+        case .dismissAlert:
+            state.alert = nil
+            return .none
         }
     }
 )
@@ -122,8 +96,8 @@ let wordViewReducer = Reducer<AppState.WordViewState, WordViewAction, WordViewEn
 struct WordView: View {
     
     @ObservedObject var viewStore : ViewStore<AppState.WordViewState, WordViewAction>
-    let store : Store<AppState.WordViewState, WordViewAction>
-    let proxy: GeometryProxy
+    private let store : Store<AppState.WordViewState, WordViewAction>
+    private let proxy: GeometryProxy
     
     init(_ store: Store<AppState.WordViewState, WordViewAction>, proxy: GeometryProxy) {
         viewStore = ViewStore(store)
@@ -155,6 +129,7 @@ struct WordView: View {
                         Image(systemName: "speaker.wave.2.fill")
                             .renderingMode(.original)
                     })
+                    .alert(store.scope(state: \.alert), dismiss: .dismissAlert)
                 }
 //                .padding([.top, .bottom], 25)
 //                .padding([.leading, .trailing], 10)
@@ -188,6 +163,7 @@ struct WordView: View {
                             
                         }
                         .transition(AnyTransition.identity)
+                        
                 }
                             
                 

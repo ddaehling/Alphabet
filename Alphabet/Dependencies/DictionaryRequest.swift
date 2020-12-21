@@ -30,20 +30,21 @@ struct URLVariables: Equatable {
     }
 }
 
-enum APIError: Error {
-    
+enum APIError: Error, Equatable {
+    case corruptedJSONData
+    case httpURLResponseStatusCode(Int)
+    case noEntryFound
+    case unknown(String)
 }
 
-typealias Result = Result<Data, APIError>
+typealias APIResult = Result<APIResponse, APIError>
+typealias AudioRequestResult = Result<Data, APIError>
 
 struct DictionaryRequest {
-    var pronunciationRequest : (String, URLVariables, Cache<String, Data>) -> Effect<Data, Never>
+    var pronunciationRequest : (String, URLVariables, Cache<String, Data>, AnySchedulerOf<DispatchQueue>) -> Effect<AudioRequestResult, Never>
     
-    init(pronunciationRequest: @escaping (String, URLVariables, Cache<String, Data>) -> Effect<Data, Never>,
+    init(pronunciationRequest: @escaping (String, URLVariables, Cache<String, Data>, AnySchedulerOf<DispatchQueue>) -> Effect<AudioRequestResult, Never>,
                 components: URLVariables = URLVariables()
     ) { self.pronunciationRequest = pronunciationRequest }
 }
 
-struct APIError: Codable, Error {
-    let error: String
-}

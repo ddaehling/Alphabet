@@ -12,7 +12,7 @@ struct LetterEnvironment {
     var mainQueue : AnySchedulerOf<DispatchQueue>
 }
 
-enum LetterAction {
+enum LetterAction: Equatable {
     case letterHasAppeared
     case preferenceDataChanged([LetterPreferenceData])
 }
@@ -37,7 +37,7 @@ let letterReducer = Reducer<Letter, LetterAction, LetterEnvironment> { state, ac
 struct LetterView: View {
     
     @ObservedObject var viewStore : ViewStore<Letter, LetterAction>
-    let proxy : GeometryProxy
+    private let proxy : GeometryProxy
     
     init(store: Store<Letter, LetterAction>, proxy: GeometryProxy) {
         self.viewStore = ViewStore(store)

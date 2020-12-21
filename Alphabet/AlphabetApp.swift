@@ -39,7 +39,6 @@ struct AlphabetApp: App {
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
-        print("Didfinishlaunchingwithoptions called")
         try! AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
         try! AVAudioSession.sharedInstance().setActive(true)
         return true

@@ -11,8 +11,12 @@ import ComposableArchitecture
 
 extension DictionaryRequest {
     public static let live = Self(
-        pronunciationRequest: { word, variables, cache in
-            print(word)
+        pronunciationRequest: { word, variables, cache, mainQueue in
+            if let cachedRequest = cache.value(for: word) {
+                return Just(Result.success(cachedRequest))
+                    .eraseToEffect()
+            }
+            
             let word_id = word.lowercased()
             let apiKey = "2493d6db-83a3-46ca-a6d1-7b1b7924822b"
             guard let url = URL(string: "https://www.dictionaryapi.com/api/v3/references/learners/json/\(word_id)?key=\(apiKey)") else { fatalError("Invalid URL") }
@@ -20,23 +24,25 @@ extension DictionaryRequest {
 
             let publisher = URLSession.shared.dataTaskPublisher(for: request)
             return publisher
-                .tryMap { data, response in
+                .tryMap { data, response -> APIResult in
                     guard let jsonData = try? JSONSerialization.jsonObject(with: data),
                           let json = try? JSONSerialization.data(withJSONObject: jsonData, options: .prettyPrinted) else {
-                        return APIResponse.empty
+                        throw APIError.corruptedJSONData
                     }
+                    
+                    if let httpUrlResponse = response as? HTTPURLResponse,
+                       !(200...299).contains(httpUrlResponse.statusCode) {
+                        throw APIError.httpURLResponseStatusCode(httpUrlResponse.statusCode)
+                    }
+                    
                     let decoder = JSONDecoder()
-                    
-                    guard let httpUrlResponse = response as? HTTPURLResponse,
-                          (200...299).contains(httpUrlResponse.statusCode) else {
-                        let apiError = try decoder.decode(APIError.self, from: data)
-                        throw apiError
-                    }
-                    
                     do {
+                        if let noEntryFound = try? decoder.decode(NoEntryFound.self, from: data) {
+                            throw APIError.noEntryFound
+                        }
                         let responseElements = try decoder.decode([APIResponseElement].self, from: data)
                         let response = APIResponse(elements: responseElements)
-                        return response
+                        return .success(response)
                     } catch let error as DecodingError {
                         switch error {
                         case let .typeMismatch(_, context):
@@ -50,31 +56,40 @@ extension DictionaryRequest {
                         @unknown default:
                             fatalError("An unknown error occurred.")
                         }
-                    }
+                    } 
                 }
-                .tryCatch { error -> AnyPublisher<APIResponse, Error> in
+                .catch { error -> AnyPublisher<APIResult, Never> in
                     guard let apiError = error as? APIError else {
-                        throw error
+                        return Just(.failure(.unknown("An unknown error occurred.")))
+                            .eraseToAnyPublisher()
                     }
-                    // TODO: Handle
-                    return Just(APIResponse.empty)
-                        .setFailureType(to: Error.self)
-                        .eraseToAnyPublisher()
+                        return Just(.failure(apiError))
+                            .eraseToAnyPublisher()
+                    
                 }
-                .replaceError(with: APIResponse.empty)
-                .flatMap { response -> AnyPublisher<Data, Never> in
-                    guard let firstElement = response.elements.first,
+                .flatMap { response -> AnyPublisher<AudioRequestResult, Never> in
+                    guard case let .success(response) = response,
+                          let firstElement = response.elements.first,
                           let audio = firstElement.hwi?.prs?[0].sound?.audio,
                           let subDirectory = audio.first,
                           let audioURL = URL(string: "https://media.merriam-webster.com/audio/prons/en/us/mp3/\(String(subDirectory))/\(audio).mp3") else {
                         print("Failed initializing url")
                         fatalError()
                     }
-                    return URLSession.shared.dataTaskPublisher(for: audioURL)
-                        .map { $0.data }
-                        .replaceError(with: Data())
+                    let mp3RequestPublisher = URLSession.shared.dataTaskPublisher(for: audioURL).share()
+                    return mp3RequestPublisher
+                        .catch { _ in
+                            mp3RequestPublisher
+                                .delay(for: 1, scheduler: mainQueue)
+                                .eraseToAnyPublisher()
+                        }
+                        .retry(3)
+                        .map { .success($0.data) }
+                        .replaceError(with: .failure(.unknown("An unknown error occurred.")))
                         .eraseToAnyPublisher()
+                        
                 }
+                
                 .eraseToEffect()
         }
     )
@@ -86,3 +101,5 @@ extension DictionaryRequest {
 //            request.addValue("application/json", forHTTPHeaderField: "Accept")
 //            request.addValue(variables.appId, forHTTPHeaderField: "app_id")
 //            request.addValue(variables.appKey, forHTTPHeaderField: "app_key")
+
+
