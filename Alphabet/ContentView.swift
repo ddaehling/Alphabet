@@ -88,7 +88,7 @@ struct AppEnvironment {
     typealias Notification = NotificationCenter.Publisher.Output
     typealias Failure = NotificationCenter.Publisher.Failure
     
-    var requestDictionaryEntry: (String, URLVariables, Cache<String, Data>, AnySchedulerOf<DispatchQueue>) -> Effect<AudioRequestResult, Never>
+    var requestAudio: (String, URLVariables, Cache<String, Data>, AnySchedulerOf<DispatchQueue>) -> Effect<AudioRequestResult, Never>
     var uuid: () -> UUID
     var mainQueue: AnySchedulerOf<DispatchQueue>
     var orientationDidChange: Effect<Notification, Failure>
@@ -104,7 +104,7 @@ let appReducer = Reducer<AppState, AppAction, AppEnvironment>.combine(
         action: /AppAction.wordViewAction,
         environment: { WordViewEnvironment(
             mainqueue: $0.mainQueue,
-            requestDictionaryCheck: $0.requestDictionaryEntry,
+            requestAudio: $0.requestAudio,
             audioPlayer: $0.audioPlayer,
             fileManager: $0.fileManager,
             cache: $0.cache

@@ -9,14 +9,9 @@ import Foundation
 import Combine
 import ComposableArchitecture
 
-extension DictionaryRequest {
+extension APIRequest {
     public static let live = Self(
-        pronunciationRequest: { word, variables, cache, mainQueue in
-            if let cachedRequest = cache.value(for: word) {
-                return Just(Result.success(cachedRequest))
-                    .eraseToEffect()
-            }
-            
+        dictionaryRequest: { word, variables, cache, mainQueue in
             let word_id = word.lowercased()
             let apiKey = "2493d6db-83a3-46ca-a6d1-7b1b7924822b"
             guard let url = URL(string: "https://www.dictionaryapi.com/api/v3/references/learners/json/\(word_id)?key=\(apiKey)") else { fatalError("Invalid URL") }
@@ -56,7 +51,7 @@ extension DictionaryRequest {
                         @unknown default:
                             fatalError("An unknown error occurred.")
                         }
-                    } 
+                    }
                 }
                 .catch { error -> AnyPublisher<APIResult, Never> in
                     guard let apiError = error as? APIError else {
@@ -67,7 +62,21 @@ extension DictionaryRequest {
                             .eraseToAnyPublisher()
                     
                 }
+                .eraseToAnyPublisher()
+        },
+        pronunciationRequest: { word, variables, cache, mainQueue, dictionaryRequest in
+            if let cachedRequest = cache.value(for: word) {
+                return Just(Result.success(cachedRequest))
+                    .eraseToEffect()
+            }
+            
+            return dictionaryRequest(word, variables, cache, mainQueue)
                 .flatMap { response -> AnyPublisher<AudioRequestResult, Never> in
+                    
+                    if case let .failure(error) = response {
+                        return Just(.failure(error)).eraseToAnyPublisher()
+                    } 
+                    
                     guard case let .success(response) = response,
                           let firstElement = response.elements.first,
                           let audio = firstElement.hwi?.prs?[0].sound?.audio,
@@ -89,7 +98,6 @@ extension DictionaryRequest {
                         .eraseToAnyPublisher()
                         
                 }
-                
                 .eraseToEffect()
         }
     )

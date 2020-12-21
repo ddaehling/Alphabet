@@ -21,7 +21,7 @@ enum WordViewAction: Equatable {
 
 struct WordViewEnvironment {
     var mainqueue : AnySchedulerOf<DispatchQueue>
-    var requestDictionaryCheck : (String, URLVariables, Cache<String, Data>, AnySchedulerOf<DispatchQueue>) -> Effect<AudioRequestResult, Never>
+    var requestAudio : (String, URLVariables, Cache<String, Data>, AnySchedulerOf<DispatchQueue>) -> Effect<AudioRequestResult, Never>
     var audioPlayer: (Data) throws -> AVAudioPlayer
     var fileManager: FileManager
     var cache : Cache<String, Data>
@@ -49,7 +49,7 @@ let wordViewReducer = Reducer<AppState.WordViewState, WordViewAction, WordViewEn
         case .letterAction:
             return .none
         case .pronunciationButtonTapped:
-            return environment.requestDictionaryCheck(state.currentWord, state.urlVariables, environment.cache, environment.mainqueue)
+            return environment.requestAudio(state.currentWord, state.urlVariables, environment.cache, environment.mainqueue)
                 .map{ WordViewAction.pronunciationResponseReceived($0) }
                 .cancellable(id: RequestID(), cancelInFlight: true)
                 .receive(on: environment.mainqueue)

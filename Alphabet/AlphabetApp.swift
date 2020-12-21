@@ -21,7 +21,7 @@ struct AlphabetApp: App {
                 initialState: AppState(orientation: UIDevice.current.orientation),
                 reducer: appReducer,
                 environment: AppEnvironment(
-                    requestDictionaryEntry: DictionaryRequest.live.pronunciationRequest,
+                    requestAudio: APIRequest.live._pronunciationRequest,
                     uuid: UUID.init,
                     mainQueue: DispatchQueue.main.eraseToAnyScheduler(),
                     orientationDidChange: NotificationCenter.default
