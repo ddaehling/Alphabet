@@ -23,6 +23,7 @@ struct AlphabetApp: App {
         if let raw = env["UITEST_THEME"], let id = ThemeID(rawValue: raw) { store.id = id }
         if env["UITEST_MODE"] == "challenge" { model.setMode(.challenge) }
         if let word = env["UITEST_WORD"] { word.forEach { model.tapLetter(String($0)) } }
+        if env["UITEST_PICKER"] == "1" { model.showThemePicker = true }
 
         _model = State(initialValue: model)
         _themeStore = State(initialValue: store)
