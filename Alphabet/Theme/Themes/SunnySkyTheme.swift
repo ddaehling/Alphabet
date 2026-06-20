@@ -19,7 +19,8 @@ enum SunnySkyTheme {
         switcherTrack: Color.white.opacity(0.55),
         switcherThumb: ButtonPaint(fillTop: Color(hex: "FFB860"), fillBottom: Color(hex: "FF9E3D"),
                                    rim: Color(hex: "E07A1E"), label: .white),
-        tileChip: TileChipStyle(tint: .letterColor, shape: .circle, shadowOpacity: 0.10, highlightOpacity: 0.75),
+        letterShadow: LetterShadow(color: .black.opacity(0.20), radiusFactor: 0.055, dyFactor: 0.045),
+        letterHalo: LetterHalo(color: Color(hex: "5A4632").opacity(0.22), radiusFactor: 0.05),
         motion: MotionProfile(springResponse: 0.42, springDamping: 0.6, flyArcHeight: 100, idleWobble: true),
         celebration: .confetti
     )
@@ -36,12 +37,14 @@ struct SunnySkyBackground: View {
             let h = geo.size.height
 
             ZStack {
-                // Smooth vertical sky gradient: warm peach -> cream -> pale sky -> soft blue.
+                // Smooth vertical sky gradient: warm peach -> cooled cream -> pale sky -> soft blue.
+                // Mid cream stop is cooled/deepened and the sky stops pulled up a touch so the
+                // central band (where warm yellow/orange/lime letters sit) is never near-white.
                 LinearGradient(
                     stops: [
                         .init(color: Color(hex: "FFE2C2"), location: 0.0),
-                        .init(color: Color(hex: "FFF1DC"), location: 0.22),
-                        .init(color: Color(hex: "BCE4F5"), location: 0.62),
+                        .init(color: Color(hex: "F4E8CE"), location: 0.22),
+                        .init(color: Color(hex: "BCE4F5"), location: 0.56),
                         .init(color: Color(hex: "9FD6F2"), location: 1.0),
                     ],
                     startPoint: .top, endPoint: .bottom
@@ -59,6 +62,17 @@ struct SunnySkyBackground: View {
                 )
                 .blendMode(.plusLighter)
                 .allowsHitTesting(false)
+
+                // Soft cream veil behind the central grid rows: a wide horizontal band that
+                // flattens the value range exactly in the letter band so chip-less letters
+                // keep contrast. Large blur keeps it imperceptible as an edge.
+                Capsule()
+                    .fill(Color(hex: "FDF6EA"))
+                    .frame(width: w * 1.4, height: h * 0.34)
+                    .position(x: w * 0.5, y: h * 0.5)
+                    .blur(radius: max(w, h) * 0.12)
+                    .opacity(0.35)
+                    .allowsHitTesting(false)
 
                 // Slowly drifting soft clouds (static under reduceMotion).
                 CloudLayer(size: geo.size, reduceMotion: reduceMotion)
@@ -90,10 +104,12 @@ private struct CloudLayer: View {
         let opacity: Double
     }
 
+    // Kept in the top ~22% only, clear of the central grid band. Peak white is capped
+    // (see cloudShape) so the brightest puff never approaches pure white near the letters.
     private let clouds: [Cloud] = [
-        Cloud(x: 0.20, y: 0.20, scale: 1.00, drift: 26, phase: 0.0, opacity: 0.92),
-        Cloud(x: 0.74, y: 0.16, scale: 0.82, drift: 20, phase: 1.7, opacity: 0.88),
-        Cloud(x: 0.49, y: 0.13, scale: 0.58, drift: 16, phase: 3.1, opacity: 0.80),
+        Cloud(x: 0.20, y: 0.15, scale: 1.00, drift: 26, phase: 0.0, opacity: 0.85),
+        Cloud(x: 0.74, y: 0.12, scale: 0.82, drift: 20, phase: 1.7, opacity: 0.82),
+        Cloud(x: 0.49, y: 0.10, scale: 0.58, drift: 16, phase: 3.1, opacity: 0.78),
     ]
 
     var body: some View {
@@ -133,14 +149,14 @@ private struct CloudLayer: View {
             }
             .foregroundStyle(Color(hex: "DCEDF7"))
 
-            // Bright white tops.
+            // Bright tops, capped below pure white so peak luminance stays ~0.85.
             Group {
                 puff(d: base * 0.90, dx: -base * 0.46, dy: 0)
                 puff(d: base * 1.16, dx: -base * 0.02, dy: -base * 0.05)
                 puff(d: base * 0.84, dx: base * 0.46,  dy: 0)
                 puff(d: base * 0.66, dx: base * 0.20,  dy: -base * 0.18)
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.white.opacity(0.85))
         }
         .compositingGroup()
         .blur(radius: 1.5)                       // static soft edge (cheap, not per-frame data)
@@ -169,17 +185,17 @@ private struct HillLayer: View {
         let frontCrest = h * 0.83
 
         ZStack {
-            // Back crest.
+            // Back crest (top edge darkened ~6% so the bottom letter row keeps contrast).
             hillPath(width: w, height: h, crest: backCrest, amplitude: h * 0.030, phase: 0.0)
-                .fill(Color(hex: "6FB23C"))
+                .fill(Color(hex: "68A738"))
 
-            // Front crest.
+            // Front crest (top edge darkened ~6%).
             hillPath(width: w, height: h, crest: frontCrest, amplitude: h * 0.026, phase: 0.6)
-                .fill(Color(hex: "86C44A"))
+                .fill(Color(hex: "7EB846"))
 
-            // Sunlit rim along the front crest's top edge.
+            // Sunlit rim along the front crest's top edge (also dialed back ~6%).
             crestLine(width: w, height: h, crest: frontCrest, amplitude: h * 0.026, phase: 0.6)
-                .stroke(Color(hex: "A6D86A"), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                .stroke(Color(hex: "9CCB64"), style: StrokeStyle(lineWidth: 4, lineCap: .round))
                 .opacity(0.9)
 
             // Decorations: tiny grass tufts + daisy dots resting near the front crest.

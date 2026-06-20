@@ -9,22 +9,23 @@ struct ButtonPaint: Equatable {
     var glossOpacity: Double = 0.4
 }
 
-enum ChipShape: Equatable {
-    case circle
-    case roundedSquare(cornerRadius: CGFloat)
+/// Contact drop shadow that grounds a chip-less standalone letter. Radius/offset are
+/// fractions of the tile size (tokens are static; tile size is per-cell).
+struct LetterShadow: Equatable {
+    var color: Color
+    var radiusFactor: CGFloat
+    var dyFactor: CGFloat
 }
 
-/// The contrast chip seated behind every glossy letter — the legibility guarantee.
-struct TileChipStyle: Equatable {
-    enum Tint: Equatable {
-        case letterColor    // tint to the per-letter rainbow color
-        case neutralLight   // soft white/cream chip
-        case neutralDark    // dark chip (e.g. jelly lab)
-    }
-    var tint: Tint
-    var shape: ChipShape = .circle
-    var shadowOpacity: Double = 0.12
-    var highlightOpacity: Double = 0.7
+/// Optional soft rim — a `.shadow` with no offset and a fully transparent center — that
+/// fires only where physics demands it: a dark rim for pale letters on light themes, a
+/// white rim for all letters on dark themes. Never a filled disc (that would be a chip
+/// by another name).
+struct LetterHalo: Equatable {
+    var color: Color
+    var radiusFactor: CGFloat
+    /// true → rim fires for every letter (dark themes); false → only for pale letters (light themes).
+    var appliesToAll: Bool = false
 }
 
 /// How letters move in a theme.
@@ -63,7 +64,8 @@ struct Theme: Identifiable, Equatable {
     var switcherTrack: Color
     var switcherThumb: ButtonPaint
 
-    var tileChip: TileChipStyle
+    var letterShadow: LetterShadow
+    var letterHalo: LetterHalo? = nil
     var motion: MotionProfile
     var celebration: CelebrationStyle
     var typography: ThemeTypography = ThemeTypography()

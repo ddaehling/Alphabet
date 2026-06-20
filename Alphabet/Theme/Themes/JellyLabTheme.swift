@@ -19,8 +19,8 @@ enum JellyLabTheme {
         switcherTrack: Color(hex: "241152"),
         switcherThumb: ButtonPaint(fillTop: Color(hex: "C06BF5"), fillBottom: Color(hex: "7A28D6"),
                                    rim: Color(hex: "5A1FB0"), label: .white),
-        tileChip: TileChipStyle(tint: .letterColor, shape: .roundedSquare(cornerRadius: 22),
-                                shadowOpacity: 0.0, highlightOpacity: 0.7),
+        letterShadow: LetterShadow(color: Color(hex: "0E0626").opacity(0.55), radiusFactor: 0.06, dyFactor: 0.05),
+        letterHalo: LetterHalo(color: .white.opacity(0.16), radiusFactor: 0.085, appliesToAll: true),
         motion: MotionProfile(springResponse: 0.4, springDamping: 0.55, flyArcHeight: 110, idleWobble: true),
         celebration: .sparkle
     )
@@ -30,8 +30,10 @@ enum JellyLabTheme {
 
 /// Bubblegum Jelly Lab: a rich grape→indigo→deep radial gradient, a soft sheen band
 /// near the top, a few LARGE static-blurred color bokeh circles at very low opacity,
-/// and a scatter of tiny white sparkle dots. Everything ambient stays low-opacity and
-/// desaturated so the glossy bubble letters glow on top.
+/// and a sparse scatter of tiny white sparkle dots. The bokeh and sparkles are dimmed
+/// and pushed toward the margins, and the radial/vignette are deepened, so the central
+/// grid band stays a calm dark field — chip-less letters keep their contrast there while
+/// the candy color still glows around the edges.
 struct JellyLabBackground: View {
     /// One large soft bokeh orb. Positions/sizes are expressed as fractions of the
     /// canvas so the composition scales with the iPad screen.
@@ -43,32 +45,33 @@ struct JellyLabBackground: View {
         let opacity: Double
     }
 
-    // Few, large, low-opacity. Pink / cyan / lime / purple / soft gold — candy-shop hues.
+    // Few, large, low-opacity, pushed toward the margins. Pink / cyan / lime / purple /
+    // soft gold — candy-shop hues. Opacities are dimmed to ~0.4 of the old values so no
+    // glowing blob ever sits bright behind a dark-edged letter; the brightest orb is shoved
+    // off dead-center into the top-left corner.
     private let bokeh: [Bokeh] = [
-        Bokeh(hex: "FF7FC0", ux: 0.12, uy: 0.18, ur: 0.16, opacity: 0.10),
-        Bokeh(hex: "6BE0FF", ux: 0.88, uy: 0.16, ur: 0.13, opacity: 0.10),
-        Bokeh(hex: "B6F36B", ux: 0.92, uy: 0.56, ur: 0.18, opacity: 0.07),
-        Bokeh(hex: "C79AFF", ux: 0.09, uy: 0.62, ur: 0.15, opacity: 0.10),
-        Bokeh(hex: "FFE26B", ux: 0.49, uy: 0.08, ur: 0.10, opacity: 0.08),
+        Bokeh(hex: "FF7FC0", ux: 0.08, uy: 0.14, ur: 0.16, opacity: 0.040),
+        Bokeh(hex: "6BE0FF", ux: 0.92, uy: 0.13, ur: 0.13, opacity: 0.040),
+        Bokeh(hex: "B6F36B", ux: 0.95, uy: 0.58, ur: 0.18, opacity: 0.028),
+        Bokeh(hex: "C79AFF", ux: 0.06, uy: 0.64, ur: 0.15, opacity: 0.040),
+        Bokeh(hex: "FFE26B", ux: 0.18, uy: 0.06, ur: 0.10, opacity: 0.032),
     ]
 
-    // A handful of small mid-bright accent puffs (still soft) for depth.
+    // A handful of small mid-bright accent puffs (still soft) for depth — also dimmed to
+    // ~0.4 and kept off the central grid band.
     private let accents: [Bokeh] = [
-        Bokeh(hex: "FF8AD4", ux: 0.21, uy: 0.40, ur: 0.05, opacity: 0.16),
-        Bokeh(hex: "6BF0C0", ux: 0.80, uy: 0.40, ur: 0.045, opacity: 0.16),
-        Bokeh(hex: "FFFFFF", ux: 0.68, uy: 0.20, ur: 0.035, opacity: 0.10),
+        Bokeh(hex: "FF8AD4", ux: 0.14, uy: 0.36, ur: 0.05, opacity: 0.064),
+        Bokeh(hex: "6BF0C0", ux: 0.86, uy: 0.36, ur: 0.045, opacity: 0.064),
     ]
 
-    // Tiny white sparkle dots (static). Fractions of width/height.
+    // Tiny white sparkle dots (static). Fractions of width/height. Reduced in count and
+    // dimmed to ~0.4 so the grid reads on a calm dark field.
     private let dots: [(ux: CGFloat, uy: CGFloat, r: CGFloat, o: Double)] = [
-        (0.16, 0.27, 2.0, 0.70),
-        (0.85, 0.29, 2.5, 0.70),
-        (0.62, 0.12, 1.5, 0.60),
-        (0.29, 0.16, 1.8, 0.60),
-        (0.91, 0.73, 2.0, 0.60),
-        (0.08, 0.78, 1.8, 0.60),
-        (0.45, 0.84, 1.6, 0.55),
-        (0.74, 0.66, 1.4, 0.50),
+        (0.16, 0.27, 2.0, 0.28),
+        (0.85, 0.29, 2.5, 0.28),
+        (0.62, 0.12, 1.5, 0.24),
+        (0.29, 0.16, 1.8, 0.24),
+        (0.91, 0.73, 2.0, 0.24),
     ]
 
     var body: some View {
@@ -78,9 +81,11 @@ struct JellyLabBackground: View {
             let m = min(w, h)
 
             ZStack {
-                // Base radial gradient: grape center → indigo → deep edges.
+                // Base radial gradient: grape center → indigo → deep edges. Mid/edge
+                // stops are deepened so the central grid band sits on a calm dark field
+                // (the center grape stop is unchanged — not brightened).
                 RadialGradient(
-                    colors: [Color(hex: "7B3FD4"), Color(hex: "3A1C7E"), Color(hex: "1B0E45")],
+                    colors: [Color(hex: "7B3FD4"), Color(hex: "32176E"), Color(hex: "150A38")],
                     center: UnitPoint(x: 0.5, y: 0.34),
                     startRadius: 10,
                     endRadius: m * 1.15
@@ -131,12 +136,13 @@ struct JellyLabBackground: View {
                         .position(x: d.ux * w, y: d.uy * h)
                 }
 
-                // A faint vignette to keep edges deep and the center luminous,
-                // reinforcing the "letters glow" reading.
+                // A vignette to keep edges deep and the central grid band calm and dark
+                // so chip-less letters never lose contrast. Deepened slightly and pulled
+                // inward; it darkens — it does not brighten the center.
                 RadialGradient(
-                    colors: [Color.clear, Color(hex: "120730").opacity(0.45)],
+                    colors: [Color.clear, Color(hex: "0E0626").opacity(0.58)],
                     center: .center,
-                    startRadius: m * 0.45,
+                    startRadius: m * 0.40,
                     endRadius: m * 0.95
                 )
                 .allowsHitTesting(false)

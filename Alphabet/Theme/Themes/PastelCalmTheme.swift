@@ -2,11 +2,13 @@ import SwiftUI
 
 // MARK: - Soft Pastel Calm (Montessori / sensory-friendly)
 //
-// A quiet warm off-white canvas with three very soft, large, blurred pastel
-// orbs at low opacity. The orbs are intentionally desaturated and recessive so
-// the rainbow bubble letters remain the only strong color on screen — the grid
-// stays crisp and legible. All ambient blur is static (applied once to shapes),
-// never animated, to keep the GPU cool on iPad.
+// A quiet warm off-white canvas. Three very soft, large, blurred pastel orbs
+// survive only as a near-imperceptible whisper (~0.05) shoved into the corners
+// and desaturated toward warm grey, so the central grid band stays perfectly
+// flat and the chip-less rainbow bubble letters never lose contrast against the
+// canvas. The bottom gradient stop is deepened slightly to ground the lowest
+// rows. All ambient blur is static (applied once to shapes), never animated, to
+// keep the GPU cool on iPad.
 
 enum PastelCalmTheme {
     static let theme = Theme(
@@ -25,7 +27,8 @@ enum PastelCalmTheme {
         switcherTrack: Color(hex: "EFE7D9"),
         switcherThumb: ButtonPaint(fillTop: .white, fillBottom: .white,
                                    rim: Color(hex: "E7DECF"), label: Color(hex: "5A5249")),
-        tileChip: TileChipStyle(tint: .letterColor, shape: .circle, shadowOpacity: 0.14, highlightOpacity: 0.9),
+        letterShadow: LetterShadow(color: .black.opacity(0.16), radiusFactor: 0.05, dyFactor: 0.045),
+        letterHalo: LetterHalo(color: Color(hex: "5A5249").opacity(0.22), radiusFactor: 0.05),
         motion: MotionProfile(springResponse: 0.5, springDamping: 0.85, flyArcHeight: 60, idleWobble: false),
         celebration: .glowPulse,
         typography: ThemeTypography(titleWeight: .semibold, labelWeight: .medium)
@@ -43,27 +46,31 @@ struct PastelCalmBackground: View {
             let unit = min(size.width, size.height)
 
             ZStack {
-                // Quiet warm cream vertical wash.
+                // Quiet warm cream vertical wash. The bottom stop is deepened
+                // slightly (#F3ECE0 → #ECE2D2) so the lowest grid rows gain a
+                // touch of contrast behind the now chip-less letters.
                 LinearGradient(
-                    colors: [Color(hex: "FBF7F0"), Color(hex: "F3ECE0")],
+                    colors: [Color(hex: "FBF7F0"), Color(hex: "ECE2D2")],
                     startPoint: .top,
                     endPoint: .bottom
                 )
 
-                // Three soft, static-blurred pastel orbs placed asymmetrically.
-                // Kept low-opacity and desaturated so they never compete with
-                // the rainbow letters for value or chroma.
-                orb(color: Color(hex: "CDBBE6"), opacity: 0.34, // lavender, upper-left
+                // Three soft, static-blurred pastel orbs pushed hard into the
+                // corners and dropped to a near-imperceptible whisper. They are
+                // desaturated toward warm grey so they read as faint ambient
+                // tint, never as color competing with the rainbow letters, and
+                // are kept well clear of the central grid band.
+                orb(color: Color(hex: "C7BFD2"), opacity: 0.05, // de-chroma'd lavender, top-left corner
                     diameter: unit * 0.62,
-                    center: CGPoint(x: size.width * 0.16, y: size.height * 0.30))
+                    center: CGPoint(x: size.width * 0.08, y: size.height * 0.16))
 
-                orb(color: Color(hex: "F0C5A8"), opacity: 0.30, // peach, upper-right
+                orb(color: Color(hex: "D8CBC0"), opacity: 0.05, // de-chroma'd peach, top-right corner
                     diameter: unit * 0.50,
-                    center: CGPoint(x: size.width * 0.86, y: size.height * 0.22))
+                    center: CGPoint(x: size.width * 0.94, y: size.height * 0.12))
 
-                orb(color: Color(hex: "AFCBB0"), opacity: 0.28, // sage, lower-right
+                orb(color: Color(hex: "BFC8C0"), opacity: 0.05, // de-chroma'd sage, bottom-right corner
                     diameter: unit * 0.58,
-                    center: CGPoint(x: size.width * 0.74, y: size.height * 0.78))
+                    center: CGPoint(x: size.width * 0.92, y: size.height * 0.90))
             }
         }
         .ignoresSafeArea()

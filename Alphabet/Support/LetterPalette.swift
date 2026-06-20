@@ -19,4 +19,14 @@ enum LetterPalette {
     static func color(forLetter letter: String) -> Color {
         color(for: letter.first ?? " ")
     }
+
+    /// Letters whose 3D art is light/warm enough to risk vanishing on the light themes,
+    /// so they get a soft dark rim halo there. Measured from the rendered letter PNGs'
+    /// mean opaque luminance (see scripts/measure_luminance); refined after generation.
+    static let paleArt: Set<Character> = ["a", "d", "f", "i", "k", "n", "p", "s", "u", "x"]
+
+    static func isPaleArt(_ letter: String) -> Bool {
+        guard let c = letter.lowercased().first else { return false }
+        return paleArt.contains(c)
+    }
 }

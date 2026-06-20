@@ -19,7 +19,8 @@ enum StorybookTheme {
         switcherTrack: Color(hex: "F1E2C4"),
         switcherThumb: ButtonPaint(fillTop: Color(hex: "EAC081"), fillBottom: Color(hex: "DDA85C"),
                                    rim: Color(hex: "CFA15B"), label: Color(hex: "5A3A1E")),
-        tileChip: TileChipStyle(tint: .letterColor, shape: .circle, shadowOpacity: 0.28, highlightOpacity: 0.55),
+        letterShadow: LetterShadow(color: Color(hex: "4A3420").opacity(0.28), radiusFactor: 0.06, dyFactor: 0.05),
+        letterHalo: LetterHalo(color: Color(hex: "5A4632").opacity(0.22), radiusFactor: 0.05),
         motion: MotionProfile(springResponse: 0.46, springDamping: 0.62, flyArcHeight: 95, idleWobble: false),
         celebration: .doodleStars,
         typography: ThemeTypography(titleWeight: .bold, labelWeight: .semibold)
@@ -28,25 +29,28 @@ enum StorybookTheme {
 
 // MARK: - Background
 
-/// Warm picture-book page: cream paper gradient, a soft warm corner vignette, and
-/// faint hand-drawn doodle accents (a little sun, a couple of outlined stars, dotted
-/// "paths" and a squiggle) kept low-opacity and desaturated so they stay recessive
-/// behind the glossy letter grid.
+/// Warm picture-book page: a mid-tone cream paper gradient, a soft warm corner
+/// vignette, and faint hand-drawn doodle accents (a little sun, a couple of outlined
+/// stars, dotted "paths" and squiggles) kept low-opacity and desaturated. All doodles
+/// hug the OUTER MARGINS (top strip, far columns, bottom strip), leaving the central
+/// grid band clean so chip-less letters never lose contrast or pick up a stray edge.
 struct StorybookBackground: View {
     var body: some View {
         GeometryReader { geo in
             let s = min(geo.size.width, geo.size.height)   // scale doodles to short edge
 
             ZStack {
-                // Cream paper.
-                LinearGradient(colors: [Color(hex: "FBF3E2"), Color(hex: "F3E4C8")],
+                // Cream paper — slightly deepened to a mid-tone so pale letters keep
+                // contrast against chip-less tiles (was FBF3E2 → F3E4C8).
+                LinearGradient(colors: [Color(hex: "F6ECD6"), Color(hex: "EDDABA")],
                                startPoint: .top, endPoint: .bottom)
 
                 // Warm vignette: clear in the middle, gently darker tan at the corners.
+                // Strengthened ~10% (0.28 → 0.31) so the grid sits on mid-tone paper.
                 RadialGradient(
                     stops: [
                         .init(color: .clear, location: 0.62),
-                        .init(color: Color(hex: "D9B47F").opacity(0.28), location: 1.0)
+                        .init(color: Color(hex: "D9B47F").opacity(0.31), location: 1.0)
                     ],
                     center: UnitPoint(x: 0.5, y: 0.42),
                     startRadius: s * 0.30,
@@ -78,8 +82,13 @@ private struct DoodleLayer: View {
             let h = sz.height
             let s = min(w, h)
 
-            // --- Sun, top-left: filled disc + short outlined rays. ---
-            let sunC = CGPoint(x: w * 0.11, y: h * 0.16)
+            // All doodles are confined to the OUTER MARGINS — the top strip (y ≲ 0.12),
+            // the far left/right columns (x ≲ 0.085 or x ≳ 0.915), and the bottom strip
+            // (y ≳ 0.86). No stroke is allowed to drift into the central grid band, where
+            // it could read as part of a chip-less letter's edge.
+
+            // --- Sun, top-left CORNER: filled disc + short outlined rays. ---
+            let sunC = CGPoint(x: w * 0.075, y: h * 0.085)
             let sunR = s * 0.045
             let sunRect = CGRect(x: sunC.x - sunR, y: sunC.y - sunR, width: sunR * 2, height: sunR * 2)
             ctx.opacity = 0.40
@@ -98,62 +107,62 @@ private struct DoodleLayer: View {
             ctx.stroke(rays, with: .color(starInk),
                        style: StrokeStyle(lineWidth: s * 0.004, lineCap: .round))
 
-            // --- Two outlined 5-point stars, top-right. ---
+            // --- Two outlined 5-point stars, top-right CORNER. ---
             ctx.opacity = 0.46
-            let star1 = Self.starPath(center: CGPoint(x: w * 0.89, y: h * 0.15), radius: s * 0.032)
+            let star1 = Self.starPath(center: CGPoint(x: w * 0.93, y: h * 0.085), radius: s * 0.032)
             ctx.fill(star1, with: .color(starFill))
             ctx.stroke(star1, with: .color(starInk),
                        style: StrokeStyle(lineWidth: s * 0.0035, lineJoin: .round))
 
-            let star2 = Self.starPath(center: CGPoint(x: w * 0.945, y: h * 0.255), radius: s * 0.020)
+            let star2 = Self.starPath(center: CGPoint(x: w * 0.965, y: h * 0.165), radius: s * 0.020)
             ctx.fill(star2, with: .color(starFill))
             ctx.stroke(star2, with: .color(starInk),
                        style: StrokeStyle(lineWidth: s * 0.0032, lineJoin: .round))
 
-            // --- A few faint dots near the title (sprinkle). ---
+            // --- A few faint dots, sprinkled along the TOP strip near the edges. ---
             ctx.opacity = 0.50
-            let dots: [(Double, Double, Double)] = [(0.49, 0.10, 0.004), (0.55, 0.13, 0.003), (0.435, 0.135, 0.003)]
+            let dots: [(Double, Double, Double)] = [(0.16, 0.05, 0.004), (0.22, 0.085, 0.003), (0.84, 0.055, 0.003)]
             for (fx, fy, rr) in dots {
                 let r = s * CGFloat(rr)
                 let dot = CGRect(x: w * fx - r, y: h * fy - r, width: r * 2, height: r * 2)
                 ctx.fill(Path(ellipseIn: dot), with: .color(inkSoft))
             }
 
-            // --- Dotted "paths" — dashed strokes, mid-page left & right. ---
+            // --- Dotted "paths" — dashed strokes hugging the far left & right columns. ---
             let dash = StrokeStyle(lineWidth: s * 0.003, lineCap: .round, dash: [s * 0.002, s * 0.014])
 
             var pathL = Path()
-            pathL.move(to: CGPoint(x: w * 0.07, y: h * 0.61))
-            pathL.addQuadCurve(to: CGPoint(x: w * 0.20, y: h * 0.605),
-                               control: CGPoint(x: w * 0.135, y: h * 0.56))
-            pathL.addQuadCurve(to: CGPoint(x: w * 0.34, y: h * 0.59),
-                               control: CGPoint(x: w * 0.27, y: h * 0.645))
+            pathL.move(to: CGPoint(x: w * 0.035, y: h * 0.40))
+            pathL.addQuadCurve(to: CGPoint(x: w * 0.045, y: h * 0.55),
+                               control: CGPoint(x: w * 0.085, y: h * 0.475))
+            pathL.addQuadCurve(to: CGPoint(x: w * 0.04, y: h * 0.70),
+                               control: CGPoint(x: w * 0.005, y: h * 0.625))
             ctx.opacity = 0.50
             ctx.stroke(pathL, with: .color(inkSoft), style: dash)
 
             var pathR = Path()
-            pathR.move(to: CGPoint(x: w * 0.80, y: h * 0.60))
-            pathR.addQuadCurve(to: CGPoint(x: w * 0.95, y: h * 0.605),
-                               control: CGPoint(x: w * 0.875, y: h * 0.64))
+            pathR.move(to: CGPoint(x: w * 0.965, y: h * 0.42))
+            pathR.addQuadCurve(to: CGPoint(x: w * 0.955, y: h * 0.58),
+                               control: CGPoint(x: w * 0.915, y: h * 0.50))
             ctx.opacity = 0.45
             ctx.stroke(pathR, with: .color(inkSoft), style: dash)
 
-            // --- A tiny squiggle, lower-left. ---
+            // --- A tiny squiggle, bottom-left CORNER. ---
             var squiggle = Path()
-            squiggle.move(to: CGPoint(x: w * 0.145, y: h * 0.785))
-            squiggle.addQuadCurve(to: CGPoint(x: w * 0.188, y: h * 0.78),
-                                  control: CGPoint(x: w * 0.166, y: h * 0.745))
+            squiggle.move(to: CGPoint(x: w * 0.07, y: h * 0.92))
+            squiggle.addQuadCurve(to: CGPoint(x: w * 0.113, y: h * 0.915),
+                                  control: CGPoint(x: w * 0.091, y: h * 0.88))
             ctx.opacity = 0.42
             ctx.stroke(squiggle, with: .color(inkSoft),
                        style: StrokeStyle(lineWidth: s * 0.003, lineCap: .round))
 
-            // --- A little double-hump squiggle, lower-right. ---
+            // --- A little double-hump squiggle, bottom-right CORNER. ---
             var hump = Path()
-            hump.move(to: CGPoint(x: w * 0.835, y: h * 0.785))
-            hump.addQuadCurve(to: CGPoint(x: w * 0.862, y: h * 0.785),
-                              control: CGPoint(x: w * 0.8485, y: h * 0.772))
-            hump.addQuadCurve(to: CGPoint(x: w * 0.889, y: h * 0.785),
-                              control: CGPoint(x: w * 0.8755, y: h * 0.798))
+            hump.move(to: CGPoint(x: w * 0.87, y: h * 0.92))
+            hump.addQuadCurve(to: CGPoint(x: w * 0.897, y: h * 0.92),
+                              control: CGPoint(x: w * 0.8835, y: h * 0.907))
+            hump.addQuadCurve(to: CGPoint(x: w * 0.924, y: h * 0.92),
+                              control: CGPoint(x: w * 0.9105, y: h * 0.933))
             ctx.opacity = 0.44
             ctx.stroke(hump, with: .color(inkSoft),
                        style: StrokeStyle(lineWidth: s * 0.003, lineCap: .round))
