@@ -11,6 +11,14 @@ final class AppModel {
     var challenge: ChallengeState?
     var showThemePicker = false
 
+    /// Letters currently flying from the grid into the tray (rendered invisible in their
+    /// reserved slot until they land).
+    var flights: [Flight] = []
+    /// Max letters the tray can hold before tiles would shrink below the legible minimum.
+    /// Updated by the tray from its measured width.
+    var maxTiles: Int = 12
+    var flyingIDs: Set<UUID> { Set(flights.map(\.id)) }
+
     let speech: any Speaking
     let words: WordList
 
@@ -30,7 +38,12 @@ final class AppModel {
 
     // MARK: Building the word
 
-    func tapLetter(_ letter: String) {
+    /// Adds a letter to the word. Returns false (and does nothing) if the tray is full.
+    /// When `fly` is true the tile is spawned invisible and a `Flight` is queued so the
+    /// grid letter can animate into its slot; a safety timer un-hides it regardless.
+    @discardableResult
+    func tapLetter(_ letter: String, fly: Bool = false) -> Bool {
+        guard tiles.count < maxTiles else { return false }
         let tile = Tile(letter: letter)
         if let i = removedSlotIndex, i <= tiles.count {
             tiles.insert(tile, at: i)
@@ -38,17 +51,32 @@ final class AppModel {
         } else {
             tiles.append(tile)
         }
+        if fly {
+            flights.append(Flight(id: tile.id, letter: letter))
+            let id = tile.id
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(1.6))
+                self?.completeFlight(id)
+            }
+        }
+        return true
+    }
+
+    func completeFlight(_ id: UUID) {
+        flights.removeAll { $0.id == id }
     }
 
     func removeTile(_ id: Tile.ID, longPress: Bool) {
         guard let i = tiles.firstIndex(where: { $0.id == id }) else { return }
         tiles.remove(at: i)
+        flights.removeAll { $0.id == id }
         removedSlotIndex = longPress ? i : nil
     }
 
     func clear() {
         speech.stop()
         tiles.removeAll()
+        flights.removeAll()
         removedSlotIndex = nil
         isSpeaking = false
         highlightedTileID = nil
@@ -105,6 +133,7 @@ final class AppModel {
         c.advance()
         challenge = c
         tiles.removeAll()
+        flights.removeAll()
         removedSlotIndex = nil
     }
 
