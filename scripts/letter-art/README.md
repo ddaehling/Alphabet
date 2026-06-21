@@ -29,3 +29,14 @@ done
 /tmp/lum Alphabet/Assets.xcassets/*.imageset/*.png | sort -t$'\t' -k2 -rn
 ```
 Requires Codex CLI authenticated with ChatGPT (`codex login status`).
+
+## Note on the shipped cutouts
+
+The letters currently in the asset catalog were background-removed with **Adobe
+(Photoshop) `image_remove_background`** (select-subject), which gave cleaner edges than
+the local Vision cutout on some letters (e.g. "I"). `cutout.swift` (Vision) remains here
+as a zero-dependency fallback. To redo via Adobe: upload each raw PNG to Adobe CC
+(`asset_initialize_file_upload` → PUT bytes → `asset_finalize_file_upload`), call
+`image_remove_background` with the returned `presignedAssetUrl`, then download `outputUrl`.
+The pristine opaque originals can be recovered from the Codex image-gen rollouts under
+`~/.codex/sessions/` (generated PNG is the base64 at `payload.result`).
