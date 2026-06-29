@@ -8,7 +8,10 @@ struct TileView: View {
     var isHighlighted: Bool = false
     @Environment(\.theme) private var theme
 
-    private var assetName: String { letter == " " ? "space" : letter }
+    private static let assetOverrides: [String: String] = [
+        " ": "space", "ä": "aumlaut", "ö": "oumlaut", "ü": "uumlaut", "ß": "eszett",
+    ]
+    private var assetName: String { Self.assetOverrides[letter] ?? letter }
     private var isSpace: Bool { letter == " " }
 
     var body: some View {

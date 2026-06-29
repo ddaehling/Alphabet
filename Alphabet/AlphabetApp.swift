@@ -21,6 +21,12 @@ struct AlphabetApp: App {
         // Pass via `SIMCTL_CHILD_UITEST_*` to xcrun simctl launch. No effect otherwise.
         let env = ProcessInfo.processInfo.environment
         if let raw = env["UITEST_THEME"], let id = ThemeID(rawValue: raw) { store.id = id }
+        if let raw = env["UITEST_LANG"], let lang = AppLanguage(rawValue: raw) {
+            store.language = lang
+            model.language = lang
+            model.words = WordList.load(language: lang)
+        }
+        if env["UITEST_SOUNDTAP"] == "1" { store.soundOnTap = true; model.soundOnTap = true }
         if env["UITEST_MODE"] == "challenge" { model.setMode(.challenge) }
         if let word = env["UITEST_WORD"] { word.forEach { model.tapLetter(String($0)) } }
         if env["UITEST_PICKER"] == "1" { model.showThemePicker = true }

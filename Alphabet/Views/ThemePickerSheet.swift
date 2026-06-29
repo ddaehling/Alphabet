@@ -19,11 +19,27 @@ struct ThemePickerSheet: View {
                 .padding()
 
                 VStack(alignment: .leading, spacing: 18) {
+                    Text("Language")
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    Picker("Language", selection: $store.language) {
+                        ForEach(AppLanguage.allCases) { lang in
+                            Text("\(lang.flag)  \(lang.displayName)").tag(lang)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Divider()
+
                     HStack(spacing: 12) {
                         Image(systemName: "tortoise.fill").foregroundStyle(.secondary)
                         Slider(value: $store.speechRate, in: 0.2...0.5)
                         Image(systemName: "hare.fill").foregroundStyle(.secondary)
                     }
+                    Toggle("Say each letter", isOn: $store.soundOnTap)
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    Text("Speaks each letter aloud as it's tapped, with a short pause so the child can hear it before the next one.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                     Toggle("Calm mode", isOn: $store.calmMode)
                         .font(.system(size: 17, weight: .semibold, design: .rounded))
                     Text("Calm mode keeps motion gentle and surfaces solid — good for younger or easily-overwhelmed readers.")

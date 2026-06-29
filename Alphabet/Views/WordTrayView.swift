@@ -11,6 +11,7 @@ struct WordTrayView: View {
     let reduceMotion: Bool
     let space: String
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     private let inset: CGFloat = 18
     private let trayHeight: CGFloat = 104
@@ -51,7 +52,7 @@ struct WordTrayView: View {
     }
 
     @ViewBuilder private var traySurface: some View {
-        if theme.usesMaterialSurface {
+        if theme.usesMaterialSurface && !reduceTransparency {
             theme.traySurface.opacity(0.55).background(.ultraThinMaterial)
         } else {
             theme.traySurface

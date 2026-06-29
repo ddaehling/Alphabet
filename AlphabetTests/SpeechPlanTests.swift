@@ -31,6 +31,20 @@ final class SpeechPlanTests: XCTestCase {
         XCTAssertEqual(SpeechPlan.letterName["h"], "aitch")
     }
 
+    func testGermanLetterNamesAndPlan() {
+        XCTAssertEqual(SpeechPlan.germanLetterName["z"], "zett")
+        XCTAssertEqual(SpeechPlan.germanLetterName["w"], "weh")
+        XCTAssertEqual(SpeechPlan.germanLetterName["ä"], "äh")
+        let p = SpeechPlan.make(for: [Tile(letter: "a"), Tile(letter: "b")], language: .german)
+        XCTAssertEqual(p.first, .letter(tileIndex: 0, spoken: "ah"))
+    }
+
+    func testExcludeWholeWordWhenNotIncluded() {
+        let p = SpeechPlan.make(for: tiles("cat"), language: .englishUK, includeWord: false)
+        XCTAssertFalse(p.contains { if case .word = $0 { true } else { false } })
+        XCTAssertEqual(p.count, 3)
+    }
+
     func testLetterIndicesPointAtNonSpaceTiles() {
         let t = tiles("a") + [Tile(letter: " ")] + tiles("b")
         let p = SpeechPlan.make(for: t)

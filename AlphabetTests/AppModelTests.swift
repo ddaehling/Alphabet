@@ -5,10 +5,11 @@ import XCTest
 final class AppModelTests: XCTestCase {
     /// A no-op speech double so model tests never touch real audio.
     final class NoopSpeech: Speaking {
-        func speak(tiles: [Tile], rate: Double,
+        func speak(tiles: [Tile], language: AppLanguage, includeWord: Bool, rate: Double,
                    onHighlight: @escaping (Tile.ID?) -> Void,
                    onFinish: @escaping () -> Void) { onFinish() }
-        func speakWordOnly(_ text: String, rate: Double) {}
+        func speakLetter(_ letter: String, language: AppLanguage, rate: Double,
+                         onFinish: @escaping () -> Void) { onFinish() }
         func stop() {}
     }
 
@@ -98,5 +99,26 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(m.flights.count, 2)
         m.clear()
         XCTAssertTrue(m.flights.isEmpty)
+    }
+
+    func testUndoRestoresRemovedTile() {
+        let m = model()
+        ["c", "a", "t"].forEach { m.tapLetter($0) }
+        let id = m.tiles[1].id
+        m.removeTile(id, longPress: false)
+        XCTAssertEqual(m.currentWord, "ct")
+        XCTAssertTrue(m.canUndo)
+        m.undoRemove()
+        XCTAssertEqual(m.currentWord, "cat")
+        XCTAssertFalse(m.canUndo)
+    }
+
+    func testSetLanguageReloadsWordsAndResetsChallenge() {
+        let m = model()
+        m.setMode(.challenge)
+        m.setLanguage(.german)
+        XCTAssertEqual(m.language, .german)
+        XCTAssertFalse(m.words.prompts.isEmpty)
+        XCTAssertTrue(m.tiles.isEmpty)
     }
 }

@@ -3,40 +3,51 @@ import AVFoundation
 /// Abstraction so `AppModel` can be unit-tested without invoking real audio.
 @MainActor
 protocol Speaking: AnyObject {
-    func speak(tiles: [Tile], rate: Double,
+    /// Spells each letter, optionally followed by the whole word, in the given language.
+    func speak(tiles: [Tile], language: AppLanguage, includeWord: Bool, rate: Double,
                onHighlight: @escaping (Tile.ID?) -> Void,
                onFinish: @escaping () -> Void)
-    func speakWordOnly(_ text: String, rate: Double)
+    /// Speaks a single letter's name (for the tap-to-hear mode); calls `onFinish` when done.
+    func speakLetter(_ letter: String, language: AppLanguage, rate: Double,
+                     onFinish: @escaping () -> Void)
     func stop()
 }
 
-/// On-device spell-then-say speech. Enqueues one utterance per letter (named) plus
-/// a final whole-word utterance, and reports which tile is being spoken so the UI
-/// can highlight it in sync. Fully offline; no API, no key.
+/// On-device spell-then-say speech. Offline; no API, no key. Reports which tile is being
+/// spoken so the UI can highlight it, and fires `onFinish` once the final utterance ends.
 @MainActor
 final class SpeechEngine: NSObject, Speaking, AVSpeechSynthesizerDelegate {
     private let synth = AVSpeechSynthesizer()
     private var stepForUtterance: [ObjectIdentifier: SpeechStep] = [:]
     private var tilesInFlight: [Tile] = []
+    private var pending = 0
     private var onHighlight: ((Tile.ID?) -> Void)?
     private var onFinish: (() -> Void)?
-    private let voice = AVSpeechSynthesisVoice(language: "en-GB")
+    private var voiceCache: [String: AVSpeechSynthesisVoice] = [:]
 
     override init() {
         super.init()
         synth.delegate = self
     }
 
-    func speak(tiles: [Tile],
-               rate: Double,
+    private func voice(_ language: AppLanguage) -> AVSpeechSynthesisVoice? {
+        if let v = voiceCache[language.voiceLanguage] { return v }
+        let v = AVSpeechSynthesisVoice(language: language.voiceLanguage)
+        if let v { voiceCache[language.voiceLanguage] = v }
+        return v
+    }
+
+    func speak(tiles: [Tile], language: AppLanguage, includeWord: Bool, rate: Double,
                onHighlight: @escaping (Tile.ID?) -> Void,
                onFinish: @escaping () -> Void) {
         stop()
         tilesInFlight = tiles
         self.onHighlight = onHighlight
         self.onFinish = onFinish
-        let steps = SpeechPlan.make(for: tiles)
+        let steps = SpeechPlan.make(for: tiles, language: language, includeWord: includeWord)
         guard !steps.isEmpty else { onFinish(); return }
+        pending = steps.count
+        let v = voice(language)
         for step in steps {
             let spoken: String
             switch step {
@@ -44,7 +55,7 @@ final class SpeechEngine: NSObject, Speaking, AVSpeechSynthesizerDelegate {
             case let .word(s): spoken = s
             }
             let u = AVSpeechUtterance(string: spoken)
-            u.voice = voice
+            u.voice = v
             u.rate = Float(rate)
             if case .letter = step { u.postUtteranceDelay = 0.18 }
             stepForUtterance[ObjectIdentifier(u)] = step
@@ -52,17 +63,24 @@ final class SpeechEngine: NSObject, Speaking, AVSpeechSynthesizerDelegate {
         }
     }
 
-    func speakWordOnly(_ text: String, rate: Double) {
+    func speakLetter(_ letter: String, language: AppLanguage, rate: Double,
+                     onFinish: @escaping () -> Void) {
         stop()
-        let u = AVSpeechUtterance(string: text)
-        u.voice = voice
+        let name = SpeechPlan.names(language)[Character(letter.lowercased())] ?? letter
+        let u = AVSpeechUtterance(string: name)
+        u.voice = voice(language)
         u.rate = Float(rate)
+        self.onHighlight = nil
+        self.onFinish = onFinish
+        pending = 1
+        stepForUtterance[ObjectIdentifier(u)] = .letter(tileIndex: -1, spoken: name)
         synth.speak(u)
     }
 
     func stop() {
         synth.stopSpeaking(at: .immediate)
         stepForUtterance.removeAll()
+        pending = 0
         onHighlight?(nil)
     }
 
@@ -81,12 +99,13 @@ final class SpeechEngine: NSObject, Speaking, AVSpeechSynthesizerDelegate {
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
                                        didFinish utterance: AVSpeechUtterance) {
         Task { @MainActor in
-            let isWord: Bool
-            if case .word? = stepForUtterance[ObjectIdentifier(utterance)] { isWord = true }
-            else { isWord = false }
-            if isWord {
+            stepForUtterance[ObjectIdentifier(utterance)] = nil
+            pending -= 1
+            if pending <= 0 {
+                let finish = onFinish
                 onHighlight?(nil)
-                onFinish?()
+                onFinish = nil
+                finish?()
             }
         }
     }

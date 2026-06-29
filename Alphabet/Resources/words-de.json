@@ -1,0 +1,18 @@
+[
+  { "word": "Katze", "symbol": "cat" },
+  { "word": "Hund", "symbol": "dog" },
+  { "word": "Sonne", "symbol": "sun.max" },
+  { "word": "Stern", "symbol": "star.fill" },
+  { "word": "Fisch", "symbol": "fish" },
+  { "word": "Vogel", "symbol": "bird" },
+  { "word": "Auto", "symbol": "car.fill" },
+  { "word": "Bus", "symbol": "bus" },
+  { "word": "Baum", "symbol": "tree.fill" },
+  { "word": "Haus", "symbol": "house.fill" },
+  { "word": "Mond", "symbol": "moon.fill" },
+  { "word": "Herz", "symbol": "heart.fill" },
+  { "word": "Hand", "symbol": "hand.raised.fill" },
+  { "word": "Glocke", "symbol": "bell.fill" },
+  { "word": "Tasse", "symbol": "cup.and.saucer.fill" },
+  { "word": "Schlüssel", "symbol": "key.fill" }
+]

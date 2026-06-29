@@ -5,8 +5,8 @@ import Foundation
 struct WordList: Equatable {
     let prompts: [WordPrompt]
 
-    static func load(from bundle: Bundle = .main) -> WordList {
-        if let url = bundle.url(forResource: "words", withExtension: "json"),
+    static func load(language: AppLanguage = .englishUK, from bundle: Bundle = .main) -> WordList {
+        if let url = bundle.url(forResource: language.wordsFile, withExtension: "json"),
            let data = try? Data(contentsOf: url),
            let p = try? JSONDecoder().decode([WordPrompt].self, from: data),
            !p.isEmpty {

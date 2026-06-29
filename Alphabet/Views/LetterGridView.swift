@@ -5,21 +5,16 @@ import SwiftUI
 /// balloon, even if a sibling ever reported an oversized width.
 struct LetterGridView: View {
     let space: String
+    let rows: [[String]]
     let onTap: (String) -> Void
-
-    private let rows: [[String]] = [
-        ["a", "b", "c", "d", "e", "f"],
-        ["g", "h", "i", "j", "k", "l", "m"],
-        ["n", "o", "p", "q", "r", "s", "t"],
-        ["u", "v", "w", "x", "y", "z", " "],
-    ]
 
     var body: some View {
         GeometryReader { geo in
-            let cols = 7
+            let cols = max(1, rows.map(\.count).max() ?? 7)
+            let rowCount = max(1, rows.count)
             let spacing: CGFloat = 14
-            let cell = min(96, max(40, min((geo.size.width - spacing * CGFloat(cols - 1)) / CGFloat(cols),
-                                           (geo.size.height - spacing * 3) / 4)))
+            let cell = min(96, max(44, min((geo.size.width - spacing * CGFloat(cols - 1)) / CGFloat(cols),
+                                           (geo.size.height - spacing * CGFloat(rowCount - 1)) / CGFloat(rowCount))))
             VStack(spacing: spacing) {
                 ForEach(rows.indices, id: \.self) { r in
                     HStack(spacing: spacing) {
