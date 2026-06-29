@@ -28,6 +28,18 @@ struct ThemePickerSheet: View {
                     }
                     .pickerStyle(.segmented)
 
+                    Text("Letter voice")
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    Picker("Letter voice", selection: $store.speechMode) {
+                        ForEach(SpeechMode.allCases) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    Text("**Names** says \u{201C}see\u{2013}ay\u{2013}tee\u{201D}. **Sounds** says the phonics \u{2044}k\u{2044} \u{2044}a\u{2044} \u{2044}t\u{2044} and gently blends them into the word \u{2014} best for new readers. **Both** says the name, then the sound.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
                     Divider()
 
                     HStack(spacing: 12) {

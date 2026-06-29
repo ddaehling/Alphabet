@@ -21,6 +21,8 @@ final class AppModel {
     // Settings mirrored from the store.
     var language: AppLanguage = .englishUK
     var soundOnTap: Bool = false
+    /// How letters are voiced: by name, by sound (phonics), or both.
+    var speechMode: SpeechMode = .names
 
     /// True while a tapped letter is being sounded out (tap-to-hear mode) — blocks the
     /// next tap until the letter finishes, so each one is heard clearly.
@@ -75,7 +77,7 @@ final class AppModel {
         }
         if soundOnTap {
             inputLocked = true
-            speech.speakLetter(letter, language: language, rate: rate) { [weak self] in
+            speech.speakLetter(letter, language: language, mode: speechMode, rate: rate) { [weak self] in
                 self?.inputLocked = false
             }
             // Safety: always release the lock even if the finish callback never fires.
@@ -126,7 +128,8 @@ final class AppModel {
         isSpeaking = true
         let real = WordValidator.isRealWord(currentWord, language: language)
         speech.speak(
-            tiles: tiles, language: language, includeWord: real, rate: rate,
+            tiles: tiles, language: language, mode: speechMode,
+            includeWord: real, blend: speechMode.usesSounds, rate: rate,
             onHighlight: { [weak self] in self?.highlightedTileID = $0 },
             onFinish: { [weak self] in
                 self?.isSpeaking = false
@@ -161,13 +164,24 @@ final class AppModel {
             challenge = c
             isSpeaking = true
             speech.speak(
-                tiles: tiles, language: language, includeWord: true, rate: rate,
+                tiles: tiles, language: language, mode: speechMode,
+                includeWord: true, blend: speechMode.usesSounds, rate: rate,
                 onHighlight: { [weak self] in self?.highlightedTileID = $0 },
                 onFinish: { [weak self] in self?.isSpeaking = false; self?.highlightedTileID = nil }
             )
         } else {
+            // Graduated scaffolding: reveal one more leading letter (never the whole word)
+            // and sound it out, so the child gets unstuck instead of just being buzzed.
             c.status = .wrong
+            let maxHint = max(0, target.word.count - 1)
+            if c.hintLevel < maxHint { c.hintLevel += 1 }
             challenge = c
+            let revealIdx = c.hintLevel - 1
+            let chars = Array(target.word)
+            if chars.indices.contains(revealIdx) {
+                speech.speakLetter(String(chars[revealIdx]), language: language,
+                                   mode: speechMode, rate: rate) { }
+            }
         }
     }
 
@@ -198,7 +212,8 @@ final class AppModel {
     func speakChallengeHint() {
         guard let w = challenge?.current?.word else { return }
         speech.speak(
-            tiles: w.map { Tile(letter: String($0)) }, language: language, includeWord: true, rate: rate,
+            tiles: w.map { Tile(letter: String($0)) }, language: language, mode: speechMode,
+            includeWord: true, blend: speechMode.usesSounds, rate: rate,
             onHighlight: { _ in }, onFinish: { }
         )
     }

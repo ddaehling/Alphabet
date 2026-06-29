@@ -5,11 +5,12 @@ import XCTest
 final class AppModelTests: XCTestCase {
     /// A no-op speech double so model tests never touch real audio.
     final class NoopSpeech: Speaking {
-        func speak(tiles: [Tile], language: AppLanguage, includeWord: Bool, rate: Double,
+        func speak(tiles: [Tile], language: AppLanguage, mode: SpeechMode,
+                   includeWord: Bool, blend: Bool, rate: Double,
                    onHighlight: @escaping (Tile.ID?) -> Void,
                    onFinish: @escaping () -> Void) { onFinish() }
-        func speakLetter(_ letter: String, language: AppLanguage, rate: Double,
-                         onFinish: @escaping () -> Void) { onFinish() }
+        func speakLetter(_ letter: String, language: AppLanguage, mode: SpeechMode,
+                         rate: Double, onFinish: @escaping () -> Void) { onFinish() }
         func stop() {}
     }
 
@@ -111,6 +112,30 @@ final class AppModelTests: XCTestCase {
         m.undoRemove()
         XCTAssertEqual(m.currentWord, "cat")
         XCTAssertFalse(m.canUndo)
+    }
+
+    func testWrongAnswerRevealsGraduatedHintCappedBelowWord() {
+        let m = model()
+        m.setMode(.challenge)                                // current word "cat"
+        ["c", "o", "w"].forEach { m.tapLetter($0) }
+        m.checkChallenge()
+        XCTAssertEqual(m.challenge?.status, .wrong)
+        XCTAssertEqual(m.challenge?.hintLevel, 1)            // first wrong → reveal 1 letter
+        m.clearWrongStatus(); m.checkChallenge()
+        XCTAssertEqual(m.challenge?.hintLevel, 2)            // second wrong → reveal 2
+        m.clearWrongStatus(); m.checkChallenge()
+        XCTAssertEqual(m.challenge?.hintLevel, 2)            // capped at count-1 (never the whole word)
+    }
+
+    func testHintLevelResetsOnAdvance() {
+        let m = model()
+        m.setMode(.challenge)
+        ["x"].forEach { m.tapLetter($0) }; m.checkChallenge()   // wrong → hint 1
+        XCTAssertEqual(m.challenge?.hintLevel, 1)
+        m.clear()
+        ["c", "a", "t"].forEach { m.tapLetter($0) }; m.checkChallenge()  // correct
+        m.advanceChallenge()
+        XCTAssertEqual(m.challenge?.hintLevel, 0)            // reset for the next word
     }
 
     func testSetLanguageReloadsWordsAndResetsChallenge() {

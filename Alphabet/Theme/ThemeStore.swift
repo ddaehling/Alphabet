@@ -20,6 +20,10 @@ final class ThemeStore {
     var soundOnTap: Bool {
         didSet { UserDefaults.standard.set(soundOnTap, forKey: "soundOnTap") }
     }
+    /// Voice letters by name, sound (phonics), or both.
+    var speechMode: SpeechMode {
+        didSet { UserDefaults.standard.set(speechMode.rawValue, forKey: "speechMode") }
+    }
 
     init() {
         let d = UserDefaults.standard
@@ -28,6 +32,7 @@ final class ThemeStore {
         calmMode = d.bool(forKey: "calmMode")
         language = AppLanguage(rawValue: d.string(forKey: "language") ?? "") ?? .englishUK
         soundOnTap = d.bool(forKey: "soundOnTap")
+        speechMode = SpeechMode(rawValue: d.string(forKey: "speechMode") ?? "") ?? .names
     }
 
     var theme: Theme { id.theme }

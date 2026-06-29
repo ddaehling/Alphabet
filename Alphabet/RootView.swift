@@ -24,10 +24,12 @@ struct RootView: View {
             .onChange(of: model.challenge?.status) { _, status in handleChallengeStatus(status) }
             .onAppear {
                 model.soundOnTap = themeStore.soundOnTap
+                model.speechMode = themeStore.speechMode
                 if model.language != themeStore.language { model.setLanguage(themeStore.language) }
             }
             .onChange(of: themeStore.language) { _, lang in withAnimation(spring) { model.setLanguage(lang) } }
             .onChange(of: themeStore.soundOnTap) { _, on in model.soundOnTap = on }
+            .onChange(of: themeStore.speechMode) { _, m in model.speechMode = m }
             .onChange(of: model.nonWordNudge) { _, _ in
                 withAnimation(.linear(duration: 0.4)) { shake += 1 }   // gentle "not a word yet" wiggle
             }
@@ -65,7 +67,8 @@ struct RootView: View {
             ModeSwitcher(model: model)
 
             if model.mode == .challenge, let prompt = model.challenge?.current {
-                ChallengeCardView(prompt: prompt, filledCount: model.tiles.count) {
+                ChallengeCardView(prompt: prompt, filledCount: model.tiles.count,
+                                  revealedHints: model.challenge?.hintLevel ?? 0) {
                     model.speakChallengeHint()
                 }
                 .transition(.scale.combined(with: .opacity))

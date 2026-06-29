@@ -48,7 +48,22 @@ struct WordTrayView: View {
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous)
             .stroke(theme.slotStroke.opacity(0.6), lineWidth: 2))
+        .overlay { emptyHint }
         .shadow(color: .black.opacity(0.12), radius: 10, y: 6)
+        .animation(.easeInOut(duration: 0.25), value: model.tiles.isEmpty)
+    }
+
+    /// Friendly nudge shown only when the Explore tray is empty.
+    @ViewBuilder private var emptyHint: some View {
+        if model.tiles.isEmpty && model.mode == .explore {
+            Text("Tap letters to build a word! 👆")
+                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                .foregroundStyle(theme.uiTextOnSurface.opacity(0.5))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+                .transition(.opacity)
+                .allowsHitTesting(false)
+        }
     }
 
     @ViewBuilder private var traySurface: some View {

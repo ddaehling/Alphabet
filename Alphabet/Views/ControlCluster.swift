@@ -13,12 +13,12 @@ struct ControlCluster: View {
                         paint: theme.secondaryButton, enabled: canActOnWord) {
                 withAnimation { model.clear() }
             }
-            GlossButton(systemImage: "speaker.wave.2.fill", title: "Speak",
+            GlossButton(systemImage: "speaker.wave.2.fill", title: "Say it!",
                         paint: theme.primaryButton, enabled: canActOnWord) {
                 model.speakCurrentWord()
             }
             if model.mode == .challenge {
-                GlossButton(systemImage: "checkmark", title: "Check",
+                GlossButton(systemImage: "checkmark", title: "Try it!",
                             paint: theme.primaryButton, enabled: canActOnWord) {
                     withAnimation { model.checkChallenge() }
                 }

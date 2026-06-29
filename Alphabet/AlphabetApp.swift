@@ -27,8 +27,12 @@ struct AlphabetApp: App {
             model.words = WordList.load(language: lang)
         }
         if env["UITEST_SOUNDTAP"] == "1" { store.soundOnTap = true; model.soundOnTap = true }
+        if let raw = env["UITEST_SPEECHMODE"], let m = SpeechMode(rawValue: raw) {
+            store.speechMode = m; model.speechMode = m
+        }
         if env["UITEST_MODE"] == "challenge" { model.setMode(.challenge) }
         if let word = env["UITEST_WORD"] { word.forEach { model.tapLetter(String($0)) } }
+        if let h = env["UITEST_HINT"], let n = Int(h) { model.challenge?.hintLevel = n }
         if env["UITEST_PICKER"] == "1" { model.showThemePicker = true }
 
         _model = State(initialValue: model)
