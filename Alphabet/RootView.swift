@@ -25,11 +25,13 @@ struct RootView: View {
             .onAppear {
                 model.soundOnTap = themeStore.soundOnTap
                 model.speechMode = themeStore.speechMode
+                model.useOnlinePronunciation = themeStore.useOnlinePronunciation
                 if model.language != themeStore.language { model.setLanguage(themeStore.language) }
             }
             .onChange(of: themeStore.language) { _, lang in withAnimation(spring) { model.setLanguage(lang) } }
             .onChange(of: themeStore.soundOnTap) { _, on in model.soundOnTap = on }
             .onChange(of: themeStore.speechMode) { _, m in model.speechMode = m }
+            .onChange(of: themeStore.useOnlinePronunciation) { _, on in model.useOnlinePronunciation = on }
             .onChange(of: model.nonWordNudge) { _, _ in
                 withAnimation(.linear(duration: 0.4)) { shake += 1 }   // gentle "not a word yet" wiggle
             }

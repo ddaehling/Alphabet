@@ -23,6 +23,9 @@ final class AppModel {
     var soundOnTap: Bool = false
     /// How letters are voiced: by name, by sound (phonics), or both.
     var speechMode: SpeechMode = .names
+    /// Fetch real human recordings for whole words online (cached on device), preferring
+    /// them over the built-in voice for the final "say the word" step.
+    var useOnlinePronunciation: Bool = true
 
     /// True while a tapped letter is being sounded out (tap-to-hear mode) — blocks the
     /// next tap until the letter finishes, so each one is heard clearly.
@@ -129,7 +132,8 @@ final class AppModel {
         let real = WordValidator.isRealWord(currentWord, language: language)
         speech.speak(
             tiles: tiles, language: language, mode: speechMode,
-            includeWord: real, blend: speechMode.usesSounds, rate: rate,
+            includeWord: real, blend: speechMode.usesSounds,
+            useOnline: useOnlinePronunciation, rate: rate,
             onHighlight: { [weak self] in self?.highlightedTileID = $0 },
             onFinish: { [weak self] in
                 self?.isSpeaking = false
@@ -145,6 +149,7 @@ final class AppModel {
         mode = m
         clear()
         challenge = (m == .challenge) ? ChallengeState(prompts: words.prompts) : nil
+        prefetchChallengeWord()
     }
 
     func setLanguage(_ lang: AppLanguage) {
@@ -153,6 +158,7 @@ final class AppModel {
         words = WordList.load(language: lang)
         if mode == .challenge { challenge = ChallengeState(prompts: words.prompts) }
         clear()
+        prefetchChallengeWord()
     }
 
     // MARK: Challenge
@@ -165,7 +171,8 @@ final class AppModel {
             isSpeaking = true
             speech.speak(
                 tiles: tiles, language: language, mode: speechMode,
-                includeWord: true, blend: speechMode.usesSounds, rate: rate,
+                includeWord: true, blend: speechMode.usesSounds,
+                useOnline: useOnlinePronunciation, rate: rate,
                 onHighlight: { [weak self] in self?.highlightedTileID = $0 },
                 onFinish: { [weak self] in self?.isSpeaking = false; self?.highlightedTileID = nil }
             )
@@ -200,6 +207,7 @@ final class AppModel {
         flights.removeAll()
         removedSlotIndex = nil
         lastRemoved = nil
+        prefetchChallengeWord()
     }
 
     func restartChallenge() {
@@ -207,14 +215,24 @@ final class AppModel {
         c.restart()
         challenge = c
         clear()
+        prefetchChallengeWord()
     }
 
     func speakChallengeHint() {
         guard let w = challenge?.current?.word else { return }
         speech.speak(
             tiles: w.map { Tile(letter: String($0)) }, language: language, mode: speechMode,
-            includeWord: true, blend: speechMode.usesSounds, rate: rate,
+            includeWord: true, blend: speechMode.usesSounds,
+            useOnline: useOnlinePronunciation, rate: rate,
             onHighlight: { _ in }, onFinish: { }
         )
+    }
+
+    /// Warm the recording cache for the current Challenge word so it's ready by the time
+    /// the child solves it (no-op offline or when online audio is off).
+    func prefetchChallengeWord() {
+        guard useOnlinePronunciation, let word = challenge?.current?.word else { return }
+        let lang = language
+        Task { await PronunciationStore.shared.prefetch(word: word, language: lang) }
     }
 }

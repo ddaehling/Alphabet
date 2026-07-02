@@ -6,7 +6,7 @@ final class AppModelTests: XCTestCase {
     /// A no-op speech double so model tests never touch real audio.
     final class NoopSpeech: Speaking {
         func speak(tiles: [Tile], language: AppLanguage, mode: SpeechMode,
-                   includeWord: Bool, blend: Bool, rate: Double,
+                   includeWord: Bool, blend: Bool, useOnline: Bool, rate: Double,
                    onHighlight: @escaping (Tile.ID?) -> Void,
                    onFinish: @escaping () -> Void) { onFinish() }
         func speakLetter(_ letter: String, language: AppLanguage, mode: SpeechMode,

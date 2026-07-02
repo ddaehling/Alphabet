@@ -4,9 +4,10 @@ import AVFoundation
 @MainActor
 protocol Speaking: AnyObject {
     /// Spells each letter — by name, by sound, or both, per `mode` — optionally blending
-    /// the sounds and saying the whole word, in the given language.
+    /// the sounds, then says the whole word. When `useOnline` is set, the whole-word step
+    /// prefers a real cached recording (see `PronunciationStore`), falling back to speech.
     func speak(tiles: [Tile], language: AppLanguage, mode: SpeechMode,
-               includeWord: Bool, blend: Bool, rate: Double,
+               includeWord: Bool, blend: Bool, useOnline: Bool, rate: Double,
                onHighlight: @escaping (Tile.ID?) -> Void,
                onFinish: @escaping () -> Void)
     /// Voices a single letter (for tap-to-hear / hint reveal), honouring `mode`.
@@ -15,17 +16,22 @@ protocol Speaking: AnyObject {
     func stop()
 }
 
-/// On-device spell-then-say speech. Offline; no API, no key. Reports which tile is being
-/// spoken so the UI can highlight it, and fires `onFinish` once the final utterance ends.
+/// On-device spell-then-say speech (offline; no API, no key), with an optional real-word
+/// recording for the final "say the word" step. Reports which tile is being spoken so the
+/// UI can highlight it, and fires `onFinish` once the last sound ends.
 @MainActor
-final class SpeechEngine: NSObject, Speaking, AVSpeechSynthesizerDelegate {
+final class SpeechEngine: NSObject, Speaking, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate {
     private let synth = AVSpeechSynthesizer()
+    private let store = PronunciationStore.shared
     private var stepForUtterance: [ObjectIdentifier: SpeechStep] = [:]
     private var tilesInFlight: [Tile] = []
     private var pending = 0
     private var onHighlight: ((Tile.ID?) -> Void)?
     private var onFinish: (() -> Void)?
     private var voiceCache: [String: AVSpeechSynthesisVoice] = [:]
+    private var player: AVAudioPlayer?
+    /// The whole-word step, deferred until after spelling so it can be a recording or speech.
+    private var pendingWord: (text: String, language: AppLanguage, rate: Double, online: Bool)?
 
     /// IPA pronunciation-hint attribute key (lets us voice a letter's SOUND, not its name).
     private static let ipaKey = NSAttributedString.Key(rawValue: AVSpeechSynthesisIPANotationAttribute)
@@ -62,8 +68,40 @@ final class SpeechEngine: NSObject, Speaking, AVSpeechSynthesizerDelegate {
         return u
     }
 
-    private func enqueue(_ steps: [SpeechStep], language: AppLanguage, rate: Double) {
-        guard !steps.isEmpty else { onFinish?(); onFinish = nil; return }
+    func speak(tiles: [Tile], language: AppLanguage, mode: SpeechMode,
+               includeWord: Bool, blend: Bool, useOnline: Bool, rate: Double,
+               onHighlight: @escaping (Tile.ID?) -> Void,
+               onFinish: @escaping () -> Void) {
+        stop()
+        tilesInFlight = tiles
+        self.onHighlight = onHighlight
+        self.onFinish = onFinish
+        var steps = SpeechPlan.make(for: tiles, language: language, mode: mode,
+                                    includeWord: includeWord, blend: blend)
+        // Peel the trailing whole-word step off; it's handled specially after spelling.
+        if includeWord, case let .word(text)? = steps.last {
+            steps.removeLast()
+            pendingWord = (text, language, rate, useOnline)
+            if useOnline { Task { await store.prefetch(word: text, language: language) } }  // head start
+        } else {
+            pendingWord = nil
+        }
+        startSpelling(steps, language: language, rate: rate)
+    }
+
+    func speakLetter(_ letter: String, language: AppLanguage, mode: SpeechMode,
+                     rate: Double, onFinish: @escaping () -> Void) {
+        stop()
+        tilesInFlight = []
+        self.onHighlight = nil
+        self.onFinish = onFinish
+        pendingWord = nil
+        let steps = SpeechPlan.makeSingle(letter: letter, language: language, mode: mode)
+        startSpelling(steps, language: language, rate: rate)
+    }
+
+    private func startSpelling(_ steps: [SpeechStep], language: AppLanguage, rate: Double) {
+        guard !steps.isEmpty else { runWordPhaseOrFinish(); return }
         pending = steps.count
         let v = voice(language)
         for step in steps {
@@ -73,35 +111,53 @@ final class SpeechEngine: NSObject, Speaking, AVSpeechSynthesizerDelegate {
         }
     }
 
-    func speak(tiles: [Tile], language: AppLanguage, mode: SpeechMode,
-               includeWord: Bool, blend: Bool, rate: Double,
-               onHighlight: @escaping (Tile.ID?) -> Void,
-               onFinish: @escaping () -> Void) {
-        stop()
-        tilesInFlight = tiles
-        self.onHighlight = onHighlight
-        self.onFinish = onFinish
-        let steps = SpeechPlan.make(for: tiles, language: language, mode: mode,
-                                    includeWord: includeWord, blend: blend)
-        enqueue(steps, language: language, rate: rate)
+    /// After spelling: play the whole word as a cached recording if we have one, else say
+    /// it with the built-in voice (and kick off a download so next time it's the recording).
+    private func runWordPhaseOrFinish() {
+        guard let w = pendingWord else { finishAll(); return }
+        pendingWord = nil
+        onHighlight?(nil)
+        if w.online, let file = store.cachedFileURL(word: w.text, language: w.language),
+           playWordFile(file) {
+            return   // AVAudioPlayerDelegate finishes the sequence
+        }
+        if w.online { Task { await store.prefetch(word: w.text, language: w.language) } }
+        speakWordViaSynth(w.text, language: w.language, rate: w.rate)
     }
 
-    func speakLetter(_ letter: String, language: AppLanguage, mode: SpeechMode,
-                     rate: Double, onFinish: @escaping () -> Void) {
-        stop()
-        tilesInFlight = []
-        self.onHighlight = nil
-        self.onFinish = onFinish
-        let steps = SpeechPlan.makeSingle(letter: letter, language: language, mode: mode)
-        enqueue(steps, language: language, rate: rate)
+    private func playWordFile(_ url: URL) -> Bool {
+        guard let p = try? AVAudioPlayer(contentsOf: url) else { return false }
+        player = p
+        p.delegate = self
+        return p.play()
+    }
+
+    private func speakWordViaSynth(_ text: String, language: AppLanguage, rate: Double) {
+        let step = SpeechStep.word(text: text)
+        let u = utterance(for: step, voice: voice(language), rate: rate)
+        stepForUtterance[ObjectIdentifier(u)] = step
+        pending = 1
+        synth.speak(u)
     }
 
     func stop() {
         synth.stopSpeaking(at: .immediate)
+        player?.stop()
+        player = nil
         stepForUtterance.removeAll()
         pending = 0
+        pendingWord = nil
         onHighlight?(nil)
     }
+
+    private func finishAll() {
+        let finish = onFinish
+        onHighlight?(nil)
+        onFinish = nil
+        finish?()
+    }
+
+    // MARK: AVSpeechSynthesizerDelegate
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
                                        didStart utterance: AVSpeechUtterance) {
@@ -120,12 +176,23 @@ final class SpeechEngine: NSObject, Speaking, AVSpeechSynthesizerDelegate {
         Task { @MainActor in
             stepForUtterance[ObjectIdentifier(utterance)] = nil
             pending -= 1
-            if pending <= 0 {
-                let finish = onFinish
-                onHighlight?(nil)
-                onFinish = nil
-                finish?()
-            }
+            if pending <= 0 { runWordPhaseOrFinish() }
+        }
+    }
+
+    // MARK: AVAudioPlayerDelegate
+
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor in
+            self.player = nil
+            finishAll()
+        }
+    }
+
+    nonisolated func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
+        Task { @MainActor in
+            self.player = nil
+            finishAll()
         }
     }
 }

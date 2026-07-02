@@ -24,6 +24,10 @@ final class ThemeStore {
     var speechMode: SpeechMode {
         didSet { UserDefaults.standard.set(speechMode.rawValue, forKey: "speechMode") }
     }
+    /// Fetch real human word recordings online (cached on device); off = built-in voice only.
+    var useOnlinePronunciation: Bool {
+        didSet { UserDefaults.standard.set(useOnlinePronunciation, forKey: "useOnlinePronunciation") }
+    }
 
     init() {
         let d = UserDefaults.standard
@@ -33,6 +37,7 @@ final class ThemeStore {
         language = AppLanguage(rawValue: d.string(forKey: "language") ?? "") ?? .englishUK
         soundOnTap = d.bool(forKey: "soundOnTap")
         speechMode = SpeechMode(rawValue: d.string(forKey: "speechMode") ?? "") ?? .names
+        useOnlinePronunciation = d.object(forKey: "useOnlinePronunciation") as? Bool ?? true
     }
 
     var theme: Theme { id.theme }
