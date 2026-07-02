@@ -36,9 +36,10 @@ final class SpeechEngine: NSObject, Speaking, AVSpeechSynthesizerDelegate {
     }
 
     private func voice(_ language: AppLanguage) -> AVSpeechSynthesisVoice? {
-        if let v = voiceCache[language.voiceLanguage] { return v }
-        let v = AVSpeechSynthesisVoice(language: language.voiceLanguage)
-        if let v { voiceCache[language.voiceLanguage] = v }
+        let code = language.voiceLanguage
+        if let v = voiceCache[code] { return v }
+        let v = VoiceCatalog.bestVoice(for: language)
+        if let v { voiceCache[code] = v }
         return v
     }
 

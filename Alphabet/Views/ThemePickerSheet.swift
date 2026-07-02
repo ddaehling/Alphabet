@@ -40,6 +40,19 @@ struct ThemePickerSheet: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
+                    if !VoiceCatalog.hasNaturalVoice(for: store.language) {
+                        Label {
+                            Text("For a much more natural voice, download the **Enhanced \(store.language.displayName)** voice in Settings \u{203A} Accessibility \u{203A} Spoken Content \u{203A} Voices.")
+                        } icon: {
+                            Image(systemName: "waveform.circle.fill")
+                        }
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
+                    }
+
                     Divider()
 
                     HStack(spacing: 12) {
